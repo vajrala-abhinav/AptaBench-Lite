@@ -10,6 +10,9 @@ from .presentation import COLORS
 
 def audit_dict(value,metrics=None):
     run=base_run(value)
+    if metrics is not None:
+        expected=compute_metrics(value,metrics['population'],metrics['tolerance'],metrics['sequence_scope'])
+        if metrics!=expected:raise ValueError('Metrics do not match canonical result/view')
     return {'schema_version':'lite-audit-1','run':asdict(run),'metadata':json.loads(run.metadata_json),
             'configuration':json.loads(run.config_json),'selected_metrics':metrics or compute_metrics(value),
             'automatic_metrics':{f'{pop}/{tol}/{scope}':compute_metrics(run,pop,tol,scope) for pop in ('all','matched') for tol in ('strict','adaptive') for scope in ('whole','core')},

@@ -5,7 +5,6 @@ exact fractions, no confidence weights or arbitrary acceptance margin.
 """
 from collections import Counter
 from dataclasses import replace
-from fractions import Fraction
 from math import lcm
 from .models import Association,Decision
 
@@ -36,14 +35,19 @@ def maximize(matrix):
     return result
 
 
-def resolve(golds,extractors,candidates):
-    candidates=list(candidates);gids=sorted(g.id for g in golds);eids=sorted(e.id for e in extractors)
+def strict_anchors(candidates):
     exact=[c for c in candidates if c.whole.distance==0]
     gc=Counter(c.gold_id for c in exact);ec=Counter(c.extractor_id for c in exact)
     anchors=[c for c in exact if c.viable and gc[c.gold_id]==1 and ec[c.extractor_id]==1]
     # An item named for G1 but equal to G2 is a material conflict for both hypotheses.
     conflicted_e={c.extractor_id for c in candidates if c.name_conflict and c.whole.distance==0}
     anchors=[c for c in anchors if c.extractor_id not in conflicted_e]
+    return anchors,conflicted_e
+
+
+def resolve(golds,extractors,candidates):
+    candidates=list(candidates);gids=sorted(g.id for g in golds);eids=sorted(e.id for e in extractors)
+    anchors,conflicted_e=strict_anchors(candidates)
     locked_g={c.gold_id for c in anchors};locked_e={c.extractor_id for c in anchors}
     remaining=[c for c in candidates if c.gold_id not in locked_g and c.extractor_id not in locked_e and c.viable and c.extractor_id not in conflicted_e]
     gs=[x for x in gids if x not in locked_g];es=[x for x in eids if x not in locked_e]

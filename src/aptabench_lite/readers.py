@@ -9,6 +9,7 @@ import json
 from pathlib import Path
 import re
 from zipfile import ZipFile, BadZipFile
+from time import perf_counter
 from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 from .models import Record,Source,Diagnostic
@@ -104,7 +105,11 @@ def alias(key,suffixes=()):
     return key.strip() # no casefold/fuzzy/transliteration
 
 
-def ingest(gold_bytes,extractor_bytes,config):
+def ingest(gold_bytes,extractor_bytes,config,_timings=None):
+    def normalize_timed(raw):
+        start=perf_counter();result=normalize(raw)
+        if _timings is not None:_timings['normalization_s']=_timings.get('normalization_s',0)+perf_counter()-start
+        return result
     diagnostics=[];gold=[];ext=[];seen=set();previous={};raw_index=defaultdict(set);alias_index=defaultdict(set)
     def issue(code,message,source='',rid='',severity='warning',fix='Inspect source annotations or mapping.'):
         diagnostics.append(Diagnostic(code,message,source,rid,severity,fix))
@@ -117,7 +122,7 @@ def ingest(gold_bytes,extractor_bytes,config):
             issue('MISSING_ID','Gold requires paper and record IDs',loc,severity='error')
             fallback='INVALID-GOLD-'+sha256(raw_json([row_no,r]).encode()).hexdigest()[:20]
             marker=text(r.get(config.gold_type or config.gold_status))
-            normalized=replace(normalize(r.get(config.gold_sequence)),canonical=None,status='unscoreable',warnings=('MISSING_ID',))
+            normalized=replace(normalize_timed(r.get(config.gold_sequence)),canonical=None,status='unscoreable',warnings=('MISSING_ID',))
             gold.append(Record(fallback,pid or None,key,normalized,text(r.get(config.gold_name)),'gold_curated_label',
                 Source(Path(config.gold_filename).name,config.gold_sheet,row_no,loc.split('!')[1],None,raw_json(r)),
                 marker in config.significant_values,'INVALID_ID'))
@@ -134,7 +139,7 @@ def ingest(gold_bytes,extractor_bytes,config):
         significant=marker in config.significant_values
         status='SIGNIFICANT' if significant else 'EXCLUDED_NONSIGNIFICANT' if marker in config.nonsignificant_values else 'UNKNOWN_SIGNIFICANCE'
         if status=='UNKNOWN_SIGNIFICANCE':issue(status,f'Unrecognized significance marker {marker!r}',loc,rid,'error','Map explicit significant/non-significant labels.')
-        normalized=normalize(r.get(config.gold_sequence))
+        normalized=normalize_timed(r.get(config.gold_sequence))
         if normalized.canonical and len(normalized.canonical)>MAX_SEQUENCE:raise ValueError(f'Sequence at {loc} exceeds 2000 nt safety limit')
         present=(not config.gold_type) or text(r.get(config.gold_status)) in config.present_values
         if significant and not present:
@@ -176,7 +181,7 @@ def ingest(gold_bytes,extractor_bytes,config):
                 found=re.search(r'(?i)\b(?:aptamer(?:[_ ]name)?|name)\s*[:=]\s*([^;\n,]+)',notes)
                 if found:name=found.group(1).strip();name_source='sequence_item_note_explicit'
             if not valid_dict or config.sequence_key not in item:issue('INVALID_ITEM','Item must be dictionary with configured sequence key',f'{config.extractor_sheet}!{loc}[{index}]')
-            normalized=normalize(sequence)
+            normalized=normalize_timed(sequence)
             if normalized.canonical and len(normalized.canonical)>MAX_SEQUENCE:raise ValueError(f'Sequence at {loc}[{index}] exceeds 2000 nt')
             fingerprint=sha256(raw_json([key,item,name]).encode()).hexdigest()[:20]
             occurrence[fingerprint]+=1;eid=f'E-{fingerprint}-{occurrence[fingerprint]}'

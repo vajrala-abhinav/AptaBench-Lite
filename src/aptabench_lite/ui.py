@@ -114,6 +114,8 @@ def paper_detail(value,scope,population="all",tolerance="adaptive"):
     st.subheader(f'{pid} — Sequence detail')
     st.write(f"Significant golds: {m['G']} · Accepted: {m['M']} · Unresolved: {m['pending_gold']} · Unique/logical extractor predictions: {m['E']}")
     st.caption(' · '.join(paper.aliases));st.write('Evaluation complete' if paper_status(value,paper)=='REVIEW_COMPLETE' else 'Manual review needed')
+    resolved=m['G']-m['pending_gold']
+    st.progress(resolved/m['G'] if m['G'] else 0,text=f"Review outcomes resolved: {resolved}/{m['G']} (accepted association or reviewed missing)")
     gm={g.id:g for g in run.gold};em={e.id:e for e in run.extractors};am={a.gold_id:a for a in associations(value)}
     missing=set(value.missing) if isinstance(value,ReviewedRun) else set();dm={d.gold_id:d for d in run.decisions}
     status=lambda g:am[g].origin if g in am else 'MARKED_MISSING_HUMAN' if g in missing else dm[g].status
@@ -125,19 +127,22 @@ def paper_detail(value,scope,population="all",tolerance="adaptive"):
     left,right=st.columns(2)
     with left:
         st.markdown('**Significant gold records**')
-        gid=st.selectbox('Gold record',list(paper.gold_ids),format_func=lambda g:f'{g} · {gm[g].name} · {status(g)}',key=f'gold-{pid}') if paper.gold_ids else None
+        gid=st.selectbox('Gold record',list(paper.gold_ids),format_func=lambda g:f'{g} · {gm[g].name} · {len(gm[g].sequence.canonical)} nt',key=f'gold-{pid}') if paper.gold_ids else None
     logical=list(paper.logical_extractor_ids)
     with right:
         st.markdown('**Extractor records**')
         # Include suppressed/invalid records for inspection; backend rejects
         # invalid identity transactions and prevents double-use.
         all_ids=list(paper.extractor_ids)
-        def ext_label(e):
+        def availability(e):
             owner=next((a.gold_id for a in associations(value) if a.extractor_id==e),None)
-            state='Assigned to '+owner if owner else 'Available' if e in logical else 'Duplicate-suppressed / invalid'
-            return f'{e} · {em[e].name or "unnamed"} · {state}'
+            return 'Assigned to '+owner if owner else 'Available' if e in logical else 'Duplicate-suppressed / invalid'
+        st.dataframe([{'Extractor':e,'Name':em[e].name,'Availability':availability(e)} for e in all_ids],hide_index=True)
+        def ext_label(e):
+            return f'{e} · {em[e].name or "unnamed"} · {len(em[e].sequence.canonical or "")} nt'
         suggestions=sorted((c for c in run.candidates if c.gold_id==gid),key=lambda c:(not c.name_support,c.core.distance/c.core.gold_end,c.whole.distance/c.whole.gold_end,c.id))
-        preferred=am[gid].extractor_id if gid in am else suggestions[0].extractor_id if suggestions else None
+        auto_map={a.gold_id:a for a in run.automatic}
+        preferred=auto_map[gid].extractor_id if gid in auto_map else suggestions[0].extractor_id if suggestions else None
         default_index=all_ids.index(preferred) if preferred in all_ids else 0
         eid=st.selectbox('Extractor record',all_ids,index=default_index,format_func=ext_label,key=f'ext-{pid}-{gid}') if all_ids else None
     c=next((c for c in run.candidates if c.gold_id==gid and c.extractor_id==eid),None)

@@ -125,7 +125,7 @@ is not equivalent to deleting persisted review.
 ## Export and CLI/library use
 
 Download Excel, JSON audit, review state and mapping configuration from the app.
-Excel includes Overview, Papers, Sequence, Alignment Detail, Review History, Run Info,
+Excel includes Overview, Papers, Sequence, Alignment Detail, Alignment Cells, Review History, Run Info,
 Validation and Extractor Inventory. JSON includes all candidates, both automatic and
 reviewed results, source hashes, mappings and policy versions. Alignment colors and counts
 read the same stored trace as the dashboard; exporters do not run alignment. Excel's

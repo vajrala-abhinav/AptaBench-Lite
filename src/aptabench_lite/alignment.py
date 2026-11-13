@@ -17,6 +17,8 @@ def align(gold: str, extractor: str, mode="core") -> Trace:
     if not gold or not extractor:raise ValueError("Alignment requires nonempty canonical sequences")
     if mode not in ("core","whole"):raise ValueError("Unknown alignment mode")
     n,m=len(gold),len(extractor)
+    if gold==extractor:
+        return Trace(gold,extractor,("MATCH",)*n,0,0,n,0,m,"","",1,mode)
     if n*m>4_000_000:raise ValueError("Alignment exceeds 4 million cells; inspect sequence lengths (no records skipped).")
     free=mode=="core"
     prev=[0]*(m+1) if free else list(range(m+1))

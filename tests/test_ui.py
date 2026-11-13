@@ -25,6 +25,8 @@ def test_actual_streamlit_run_controls_and_review(tmp_path,monkeypatch):
     app.selectbox(key='ext-DEMO2-G4').set_value(e.id).run()
     app.button(key='CONFIRM_ASSOCIATION').click().run();assert not app.exception
     v=app.session_state['value'];assert len(v.events)==1 and len(v.associations)==4
+    assert app.selectbox(key='gold-DEMO2').value=='G4'
+    assert app.selectbox(key='ext-DEMO2-G4').value==e.id
     app.button(key='MARK_GOLD_MISSING').click().run()
     assert any('Confirm removal' in e.value for e in app.error)
     app.selectbox(key='undo-target').set_value(1).run()

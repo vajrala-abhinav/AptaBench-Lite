@@ -39,15 +39,16 @@ def test_browser_upload_review_export(tmp_path):
             expect(page.get_by_role('heading',name='Overview',exact=True)).to_be_visible();idle()
             def select(label,option):
                 control=page.get_by_test_id('stSelectbox').filter(has=page.get_by_text(label,exact=True))
-                control.get_by_role('combobox').fill(option);page.get_by_role('option',name=option,exact=True).click();idle()
+                control.get_by_role('combobox').click();control.get_by_role('combobox').fill(option);control.get_by_role('combobox').press('ArrowDown');expect(page.get_by_role('option',name=option,exact=True)).to_be_visible();control.get_by_role('combobox').press('Enter');idle()
             select('Paper','DEMO2')
+            expect(page.get_by_role('heading',name='DEMO2 — Sequence detail',exact=True)).to_be_visible()
             page.get_by_text('Enable review / correction actions',exact=True).click();idle()
             page.get_by_label('Reviewer identity',exact=True).fill('BROWSER-PI');page.get_by_label('Reviewer identity',exact=True).press('Enter');idle()
             control=page.get_by_test_id('stSelectbox').filter(has=page.get_by_text('Gold record',exact=True))
-            control.get_by_role('combobox').fill('G4');page.get_by_role('option',name=re.compile('G4 ·')).click();idle()
+            control.get_by_role('combobox').click();control.get_by_role('combobox').fill('G4');control.get_by_role('combobox').press('ArrowDown');expect(page.get_by_role('option',name=re.compile('G4 ·'))).to_be_visible();control.get_by_role('combobox').press('Enter');idle()
             expect(control.get_by_role('combobox')).to_have_value(re.compile('G4 ·'))
             control=page.get_by_test_id('stSelectbox').filter(has=page.get_by_text('Extractor record',exact=True))
-            control.get_by_role('combobox').fill('Apt-4');page.get_by_role('option',name=re.compile('Apt-4 ·')).click();idle()
+            control.get_by_role('combobox').click();control.get_by_role('combobox').fill('Apt-4');control.get_by_role('combobox').press('ArrowDown');expect(page.get_by_role('option',name=re.compile('Apt-4 ·'))).to_be_visible();control.get_by_role('combobox').press('Enter');idle()
             expect(control.get_by_role('combobox')).to_have_value(re.compile('Apt-4 ·'))
             page.get_by_role('button',name='Confirm association',exact=True).click();idle()
             expect(page.get_by_text('After human review',exact=True)).to_be_visible()
@@ -67,6 +68,7 @@ def test_browser_upload_review_export(tmp_path):
             download.value.save_as(tmp_path/'evaluation.xlsx')
             from openpyxl import load_workbook
             assert load_workbook(tmp_path/'evaluation.xlsx')['Sequence'].max_row==6
+            page.get_by_text('Core edits:',exact=False).scroll_into_view_if_needed()
             page.screenshot(path=str(tmp_path/'review.png'),full_page=True)
             (tmp_path/'browser-evidence.json').write_text(json.dumps({'score_toggle_rerun_s':rerun_s,'metrics':m,'uploaded_files':2,'automatic_links_preserved':True},indent=2))
             # Undo preserves automatic matches; portable review backup survives reload.

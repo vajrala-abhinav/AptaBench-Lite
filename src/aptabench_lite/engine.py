@@ -15,7 +15,8 @@ from .config import RunConfig
 from .readers import source_bytes,ingest
 from .duplicates import group_duplicates
 from .candidates import compare
-from .resolver import resolve
+from .resolver import resolve,strict_anchors
+from .normalization import name_key
 from .models import EvaluationRun,Paper,Decision,Diagnostic
 
 
@@ -24,7 +25,8 @@ def evaluate(gold_file,extractor_file,config=None):
     if isinstance(config,dict):config=RunConfig(**config)
     start=perf_counter();gb,eb=source_bytes(gold_file),source_bytes(extractor_file)
     gh,eh=sha256(gb).hexdigest(),sha256(eb).hexdigest()
-    gold,ext,attempted,diags=ingest(gb,eb,config);parsed=perf_counter();diags=list(diags)
+    read_timings={};gold,ext,attempted,diags=ingest(gb,eb,config,read_timings);parsed=perf_counter();diags=list(diags)
+    assignment_s=0;comparison_s=0
     papers=[];duplicates=[];candidates=[];automatic=[];decisions=[];dp_before=align.cache_info().misses
     for pid in sorted({g.paper_id for g in gold}):
         all_g=[g for g in gold if g.paper_id==pid]
@@ -37,14 +39,38 @@ def evaluate(gold_file,extractor_file,config=None):
         if pid not in attempted:
             decisions.extend(Decision(g.id,'UNATTEMPTED_PAPER',('PAPER_UNATTEMPTED',)) for g in gs);continue
         active=[e for e in es if e.id in logical];count=Counter(g.sequence.canonical for g in gs)
-        near=set()
+        near=set();comparison_start=perf_counter()
         for a,b in combinations(gs,2):
             d=align(a.sequence.canonical,b.sequence.canonical,'whole').distance
             if d<=max(budget(len(a.sequence.canonical)),budget(len(b.sequence.canonical))):
                 near.update((a.id,b.id));diags.append(Diagnostic('GOLD_NEAR_DUPLICATE',f'{a.id} vs {b.id}: global distance {d}',record_id=a.id))
         conflicts={eid for group in groups if group.name_conflict for eid in group.members}
-        edges=[compare(g,e,e.id in conflicts,count[g.sequence.canonical]>1,g.id in near) for g in gs for e in active]
-        pairs,status,edges=resolve(gs,active,edges)
+        # S1 compares strict whole equality before any nonexact identity pass.
+        by_pair={}
+        def comparison(g,e):
+            pair=(g.id,e.id)
+            if pair not in by_pair:
+                by_pair[pair]=compare(g,e,e.id in conflicts,count[g.sequence.canonical]>1,g.id in near)
+        for g in gs:
+            for e in active:
+                if g.sequence.canonical==e.sequence.canonical:comparison(g,e)
+        anchors,_=strict_anchors(tuple(by_pair.values()))
+        locked_g={a.gold_id for a in anchors};locked_e={a.extractor_id for a in anchors}
+        remaining_g=[g for g in gs if g.id not in locked_g];remaining_e=[e for e in active if e.id not in locked_e]
+        # S2 named mini-pass shares exactly the S3 distance/trace provider.
+        for g in remaining_g:
+            for e in remaining_e:
+                if name_key(g.name) and name_key(g.name)==name_key(e.name):comparison(g,e)
+        # S3 exhaustive remaining graph; no assignment occurs in the loop.
+        for g in remaining_g:
+            for e in remaining_e:comparison(g,e)
+        # Counterfactual/preempted comparisons are for inspection only; locked
+        # endpoints stay excluded from every later solver stage.
+        for g in gs:
+            for e in active:comparison(g,e)
+        edges=list(by_pair.values())
+        comparison_s+=perf_counter()-comparison_start
+        assignment_start=perf_counter();pairs,status,edges=resolve(gs,active,edges);assignment_s+=perf_counter()-assignment_start
         automatic.extend(pairs);decisions.extend(status);candidates.extend(edges)
     try:
         commit=subprocess.check_output(['git','rev-parse','HEAD'],cwd=Path(__file__).resolve().parents[2],stderr=subprocess.DEVNULL,text=True).strip()
@@ -59,7 +85,9 @@ def evaluate(gold_file,extractor_file,config=None):
     run=EvaluationRun(rid,'lite-1',POLICY_VERSION,gh,eh,config.to_json(),json.dumps(metadata,sort_keys=True),
         tuple(sorted(gold,key=lambda r:r.id)),tuple(sorted(ext,key=lambda r:r.id)),tuple(papers),tuple(duplicates),
         tuple(sorted(candidates,key=lambda c:c.id)),tuple(sorted(automatic,key=lambda a:a.gold_id)),tuple(sorted(decisions,key=lambda d:d.gold_id)),tuple(diags),
-        json.dumps({'parse_normalize_link_s':parsed-start,'graph_alignment_assignment_s':perf_counter()-parsed,
+        json.dumps({'parse_normalize_link_s':parsed-start,'normalization_s':read_timings.get('normalization_s',0),
+                    'parsing_linking_s':parsed-start-read_timings.get('normalization_s',0),'alignment_comparison_s':comparison_s,'assignment_s':assignment_s,
+                    'graph_alignment_assignment_s':perf_counter()-parsed,
                     'total_s':perf_counter()-start,'dp_cache_misses':align.cache_info().misses-dp_before}))
     reconcile(run)
     return run

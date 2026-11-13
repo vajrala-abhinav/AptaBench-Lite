@@ -131,3 +131,9 @@ def test_html_excel_exact_colors_and_trace(make_run):
     for j,(char,op) in enumerate(zip(trace.aligned_gold,trace.operations),3):
         cell=b['Alignment Cells'].cell(2,j)
         assert cell.value==char and cell.fill.fgColor.rgb[-6:]==COLORS[op][1:]
+
+
+def test_export_rejects_inconsistent_metrics(make_run):
+    r=review_fixture(make_run);metrics=compute_metrics(r);metrics['T']=999
+    for exporter in (export_workbook,export_audit):
+        with pytest.raises(ValueError,match='canonical'):exporter(r,metrics)
