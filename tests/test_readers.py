@@ -67,3 +67,11 @@ def test_independent_name_inventory_ignored():
     book=load_workbook(BytesIO(eb));ws=book.create_sheet('aptamer_name');ws.append(['pk','value']);ws.append(['P','["A"]'])
     out=BytesIO();book.save(out)
     r=evaluate(gb,out.getvalue());assert not r.extractors[0].name and not r.candidates[0].name_support
+
+
+def test_missing_id_source_retained():
+    gb=xlsx(['paper_id','pdf_name','record_id','gold_sequence','aptamer_label_optional','aptamer_type','sequence_status'],[['P','p.pdf',None,'ACGT','','significant_sequence','present']],'Sheet1')
+    eb=xlsx(['pk','value'],[['P','[]']],'aptamer_seq')
+    r=evaluate(gb,eb)
+    assert len(r.gold)==1 and r.gold[0].scope_status=='INVALID_ID'
+    assert 'ACGT' in r.gold[0].source.raw_json and not r.gold[0].sequence.canonical

@@ -41,7 +41,7 @@ def configure(gb,eb,gname,ename):
         st.subheader('Gold reference')
         gs=st.selectbox('Gold worksheet',list(gi),key='gs');gh=gi[gs]['headers']
         if not gh:raise ValueError('Gold worksheet has no headers')
-        st.dataframe(gi[gs]['preview'],column_order=None,hide_index=True)
+        st.dataframe([dict(zip(gh,row)) for row in gi[gs]['preview']],hide_index=True)
         gp=choose('Gold paper ID',gh,['paper_id'],'gp');gk=choose('Gold filename / linking key',gh,['pdf_name','paper_key'],'gk')
         gid=choose('Gold record ID',gh,['record_id','id'],'gid');gseq=choose('Gold sequence',gh,['gold_sequence','sequence'],'gseq')
         gn=choose('Gold aptamer name (optional)',gh,['aptamer_label_optional','name'],'gn',True)
@@ -54,7 +54,7 @@ def configure(gb,eb,gname,ename):
         st.subheader('Extractor predictions')
         es=st.selectbox('Extractor worksheet',list(ei),index=list(ei).index('aptamer_seq') if 'aptamer_seq' in ei else 0,key='es');eh=ei[es]['headers']
         if not eh:raise ValueError('Extractor worksheet has no headers')
-        st.dataframe(ei[es]['preview'],hide_index=True)
+        st.dataframe([dict(zip(eh,row)) for row in ei[es]['preview']],hide_index=True)
         ek=choose('Extractor paper key',eh,['pk','paper_id','paper_key'],'ek');ev=choose('Extractor sequence / value',eh,['value','sequence'],'ev')
         parser=st.selectbox('Extractor cell format',['Structured list of sequence dictionaries','One sequence per row'],key='parser')
         simple=parser=='One sequence per row'
@@ -106,7 +106,7 @@ def _commit(value,action,gid,eid,reviewer,note,confirmed=False,target=None):
     st.rerun()
 
 
-def paper_detail(value,scope):
+def paper_detail(value,scope,population="all",tolerance="adaptive"):
     run=base_run(value);attempted=[p for p in run.papers if p.attempted]
     if not attempted:return
     pid=st.selectbox('Paper',[p.id for p in attempted],key='paper')
@@ -118,7 +118,7 @@ def paper_detail(value,scope):
     missing=set(value.missing) if isinstance(value,ReviewedRun) else set();dm={d.gold_id:d for d in run.decisions}
     status=lambda g:am[g].origin if g in am else 'MARKED_MISSING_HUMAN' if g in missing else dm[g].status
     st.dataframe([{'Gold':g,'Name':gm[g].name,'Status':status(g),'Extractor':am[g].extractor_id if g in am else '',
-                   'Length':len(gm[g].sequence.canonical),'Reason':', '.join(dm[g].reasons)} for g in paper.gold_ids],hide_index=True)
+                   'Length':len(gm[g].sequence.canonical),'Reason':', '.join(am[g].reasons if g in am else dm[g].reasons)} for g in paper.gold_ids],hide_index=True)
     if m['pending_gold'] or m['significant_unscoreable']:
         if st.button(f"Resolve manual review ({m['pending_gold']})",key='resolve'):st.session_state['correction']=True
     correction=st.checkbox('Enable review / correction actions',key='correction')
@@ -167,6 +167,13 @@ def paper_detail(value,scope):
     confirm=st.checkbox('I explicitly confirm the affected-association changes',key='explicit-confirm')
     affected=[asdict(a) for a in associations(value) if a.gold_id==gid or a.extractor_id==eid]
     st.caption('Current associations affected by the selected correction:');st.json(affected,expanded=False)
+    if any(x.gold_id==gid and x.viable for x in run.candidates) and gid not in missing:
+        st.warning('Plausible candidates remain in the graph. Marking this gold missing explicitly records that no acceptable counterpart exists; it does not improve recovery.')
+    if c:
+        proposed=commit_event(value,'REASSIGN',reviewer or 'PREVIEW',gid,eid,note or 'Preview only',confirmed=True)
+        before=compute_metrics(value,population,tolerance,scope);after=compute_metrics(proposed,population,tolerance,scope)
+        st.caption('Reassignment preview under the selected scoring view (not saved):')
+        st.json({key:{'before':before[key],'after':after[key]} for key in ('M','T','FP','FN','pending_gold')},expanded=False)
     buttons=st.columns(3)
     actions=[('Confirm association','CONFIRM_ASSOCIATION'),('Reject candidate','REJECT_PAIR'),('Mark gold missing','MARK_GOLD_MISSING'),
              ('Leave unresolved','LEAVE_UNRESOLVED'),('Reassign explicitly','REASSIGN')]
@@ -201,7 +208,8 @@ def main():
         st.info('Choose both workbooks, or try the synthetic examples.');return
     try:
         source_bytes(gb);source_bytes(eb)
-        cfg=configure(gb,eb,gname,ename)
+        with st.expander('Worksheets & column mappings',expanded='value' not in st.session_state):
+            cfg=configure(gb,eb,gname,ename)
         gold,ext,attempted,diags=_preview(gb,eb,cfg.to_json())
         st.subheader('Input validation preview')
         st.write(f'{len(gold)} gold rows · {sum(g.significant for g in gold)} significant records · {sum(len(g.sequence.canonical or "") for g in gold if g.significant)} significant bases · {len(attempted)} linked attempted papers · {len(ext)} raw extractor items')
@@ -227,7 +235,7 @@ def main():
     pop='all' if population=='All sequences' else 'matched';tol='strict' if tolerance=='Strict' else 'adaptive';sc='whole' if scope=='Whole string' else 'core'
     metrics=metric_display(value,pop,tol,sc)
     st.dataframe([{'Paper':p.id,'Attempted':p.attempted,'Status':paper_status(value,p),**{k:v for k,v in compute_metrics(value,pop,tol,sc,p.id).items() if k in ('G','E','M','T','pending_gold','significant_recovery')}} for p in run.papers],hide_index=True)
-    paper_detail(value,sc)
+    paper_detail(value,sc,pop,tol)
     st.header('Export & resume')
     st.caption('Every committed action is autosaved under .local/reviews. Download a portable review backup before moving machines. Re-upload the identical inputs and mappings to resume.')
     try:

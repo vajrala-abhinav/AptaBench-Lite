@@ -33,6 +33,7 @@ def export_workbook(value,metrics=None):
     out=BytesIO();wb=xlsxwriter.Workbook(out,{'in_memory':True,'strings_to_formulas':False,'strings_to_urls':False})
     header=wb.add_format({'bold':True,'bg_color':'#DDE9F4','text_wrap':True})
     wrap=wb.add_format({'text_wrap':True,'valign':'top'});mono=wb.add_format({'font_name':'Consolas','font_size':10})
+    cell_colors={op:wb.add_format({'bg_color':color,'font_name':'Consolas','align':'center','font_color':'#152536'}) for op,color in COLORS.items()}
     colors={op:wb.add_format({'font_color':{'MATCH':'#166534','INSERTION':'#854D0E','DELETION':'#854D0E','SUBSTITUTION':'#991B1B','FREE_EXTRACTOR_FLANK':'#64748B'}[op], 'font_name':'Consolas'}) for op in COLORS}
     def sheet(name,headers):
         ws=wb.add_worksheet(name);ws.freeze_panes(1,0);ws.write_row(0,0,headers,header);ws.set_column(0,len(headers)-1,22)
@@ -43,7 +44,7 @@ def export_workbook(value,metrics=None):
     def write_row(ws,row,values):
         for col,v in enumerate(values):
             v=safe(v)
-            if isinstance(v,str) and len(v)>32767:raise ValueError('Excel cell exceeds 32767 characters; use JSON audit for full raw data')
+            if isinstance(v,str) and len(v)>32767:v=v[:32680]+' [Excel cell limit: full value in JSON audit]' 
             ws.write(row,col,v)
     overview=sheet('Overview',['Metric','Value'])
     for row,(key,val) in enumerate(metrics.items(),1):write_row(overview,row,[key,val])
@@ -55,6 +56,7 @@ def export_workbook(value,metrics=None):
     seq=sheet('Sequence',['paper_id','gold_id','extractor_id','status','curated_name','extractor_name','gold_raw','gold_canonical','extractor_raw','extractor_canonical','gold_length','extractor_length','core_d','whole_d','budget','strict_core','adaptive_core','strict_whole','adaptive_whole','candidate_id','reasons','gold_source','extractor_source','alignment_detail'])
     detail=sheet('Alignment Detail',['candidate_id','sequence','aligned 5prime to 3prime','operations','distance','gold_start','gold_end','extractor_start','extractor_end','optimal_intervals'])
     detail.set_column(2,2,100)
+    cells=sheet('Alignment Cells',['candidate_id','sequence','aligned positions →']);cells.set_column(0,0,35);cells.set_column(1,1,12);cells.set_column(2,4002,2.5)
     cm={c.id:c for c in run.candidates};em={e.id:e for e in run.extractors};am={a.gold_id:a for a in associations(value)};dm={d.gold_id:d for d in run.decisions};missing=set(value.missing) if isinstance(value,ReviewedRun) else set()
     row=1;arow=1
     for g in run.gold:
@@ -70,6 +72,8 @@ def export_workbook(value,metrics=None):
         if c:
             trace=c.core if metrics['sequence_scope']=='core' else c.whole
             for label,string in [('Gold',trace.aligned_gold),('Extractor',trace.aligned_extractor)]:
+                write_row(cells,arow,[c.id,label])
+                for col,(char,op) in enumerate(zip(string,trace.operations),2):cells.write(arow,col,char,cell_colors[op])
                 write_row(detail,arow,[c.id,label,'',trace.operations,trace.distance,trace.gold_start,trace.gold_end,trace.extractor_start,trace.extractor_end,trace.optimal_interval_count])
                 # Rich text segments share the exact stored operation order.
                 segments=[]

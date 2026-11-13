@@ -91,3 +91,43 @@ def test_M15_exports_trace_injection(make_run):
     assert json.loads(b['Alignment Detail']['D2'].value)==list(c.core.operations)
     a=json.loads(export_audit(r));assert a['effective_metrics']['all/adaptive/core']['T']==1
     assert a['run']['candidates'][0]['core']['operations']==list(c.core.operations)
+
+
+def test_M04_confirm_within_tolerance_changes_only_overlay(make_run):
+    r=make_run([('a','ACGTCAGT'),('b','ACGCCAGT')],[('P',[{'sequence':'ACGACAGT'}])])
+    assert not r.automatic
+    v=commit_event(r,'CONFIRM_ASSOCIATION','PI','a',r.extractors[0].id)
+    assert compute_metrics(v)['T']==1 and compute_metrics(r)['T']==0
+    assert v.run is r
+
+
+def test_M12_empty_significant_population(make_run):
+    r=make_run([('a','ACGT','','non_significant_sequence')],[('P',[])])
+    m=compute_metrics(r);assert m['G']==0 and m['significant_recovery'] is None and m['f1'] is None
+
+
+def test_invalid_review_schema_rejected(make_run):
+    from hashlib import sha256
+    from aptabench_lite.review import canonical
+    r=review_fixture(make_run);a=r.automatic[0];v=commit_event(r,'REJECT_PAIR','PI',a.gold_id,a.extractor_id)
+    data=json.loads(export_review(v));data['payload']['events'][0]['reviewer']=123
+    data['sha256']=sha256(canonical(data['payload'])).hexdigest()
+    with pytest.raises(ValueError,match='types'):import_review(r,json.dumps(data).encode())
+    for raw in (b'[]',b'{"payload":[]}',b'not json'):
+        with pytest.raises(ValueError):import_review(r,raw)
+
+
+def test_cross_paper_review_and_invalid_undo(make_run):
+    r=make_run([('a','ACGT','','significant_sequence','P'),('b','TGCA','','significant_sequence','Q')],[('P',[{'sequence':'ACGT'}]),('Q',[{'sequence':'TGCA'}])])
+    e=next(e for e in r.extractors if e.paper_id=='Q')
+    with pytest.raises(ValueError,match='Cross-paper'):commit_event(r,'CONFIRM_ASSOCIATION','PI','a',e.id)
+    with pytest.raises(ValueError):commit_event(r,'UNDO','PI',target_revision=1)
+
+
+def test_html_excel_exact_colors_and_trace(make_run):
+    from aptabench_lite.presentation import COLORS
+    r=make_run([('a','ACGTCAGT')],[('P',[{'sequence':'TTACGTCAGTGG'}])])
+    b=load_workbook(BytesIO(export_workbook(r)));trace=r.candidates[0].core
+    for j,(char,op) in enumerate(zip(trace.aligned_gold,trace.operations),3):
+        cell=b['Alignment Cells'].cell(2,j)
+        assert cell.value==char and cell.fill.fgColor.rgb[-6:]==COLORS[op][1:]

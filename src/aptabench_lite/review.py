@@ -15,7 +15,10 @@ def apply_review_events(run,events):
     run=base_run(run);events=tuple(events)
     inactive=set()
     for i,event in enumerate(events,1):
-        if not isinstance(event,ReviewEvent) or event.revision!=i:raise ValueError('Review revision sequence invalid')
+        if not isinstance(event,ReviewEvent) or type(event.revision) is not int or event.revision!=i:raise ValueError('Review revision sequence invalid')
+        if any(not isinstance(getattr(event,k),str) for k in ('action','reviewer','timestamp','gold_id','extractor_id','note')) or type(event.confirmed) is not bool:
+            raise ValueError('Review event field types invalid')
+        if len(event.note)>10000:raise ValueError('Review note exceeds 10000 characters')
         if event.action not in ACTIONS or not event.reviewer.strip():raise ValueError('Unknown action or missing reviewer')
         try:
             stamp=datetime.fromisoformat(event.timestamp)
@@ -81,11 +84,16 @@ def export_review(value):
 def import_review(run,data):
     if len(data)>10*1024*1024:raise ValueError('Review file exceeds 10 MiB')
     try:
-        wrapper=json.loads(data);payload=wrapper['payload']
+        wrapper=json.loads(data)
+        if not isinstance(wrapper,dict) or not isinstance(wrapper.get('payload'),dict):raise ValueError('Invalid review-state schema')
+        payload=wrapper['payload']
         if sha256(canonical(payload)).hexdigest()!=wrapper['sha256']:raise ValueError('Review checksum mismatch')
         expected={'schema_version':'lite-review-1','run_id':run.run_id,'gold_sha256':run.gold_sha256,'extractor_sha256':run.extractor_sha256,'policy_version':run.policy_version,'config_json':run.config_json}
         if any(payload.get(k)!=v for k,v in expected.items()):raise ValueError('Review fingerprint/configuration/policy mismatch')
         events=tuple(ReviewEvent(**e) for e in payload['events'])
+        if len(events)>5000:raise ValueError('Review history exceeds 5000-event local limit')
+        # Validate every historical transaction, including actions later undone.
+        for i in range(1,len(events)+1):apply_review_events(run,events[:i])
         return apply_review_events(run,events)
     except (KeyError,TypeError,json.JSONDecodeError) as exc:raise ValueError('Invalid review-state schema') from exc
 

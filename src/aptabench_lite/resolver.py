@@ -78,11 +78,12 @@ def resolve(golds,extractors,candidates):
         alternative,score=solve(altered)
         if score==total:
             unstable.add(edge.id)
+            unstable.update({c.id for c in preferred}^{c.id for c in alternative})
             # Only fixed edges across all optima may survive. Forbidding each
             # selected edge separately is sufficient to test that invariant.
     accepted=[]
     for c in anchors:accepted.append(Association(c.gold_id,c.extractor_id,c.id,'MATCHED_STRICT',('UNIQUE_STRICT_WHOLE',)))
-    base_ids={c.id for c in base};accepted_ids=set()
+    accepted_ids=set()
     for c in preferred:
         if c.id in unstable:continue
         reasons=c.reasons+('ONE_TO_ONE_UNIQUE_OPTIMUM',)
@@ -94,7 +95,7 @@ def resolve(golds,extractors,candidates):
         edges=[c for c in candidates if c.gold_id==g.id]
         reasons=set(r for c in edges for r in c.reasons)
         if any(c.id in contested for c in edges):reasons.add('CONTESTED_EXTRACTOR')
-        if any(c.id in unstable for c in edges) or any(c.gold_id==g.id for c in remaining):
+        if any(c.id in unstable for c in edges):
             reasons.update(('EQUIVALENT_GLOBAL_ASSIGNMENT','GLOBAL_TIEBREAK_INCONCLUSIVE'))
         if not edges:reasons.add('NO_EXTRACTOR_CANDIDATE')
         decisions.append(Decision(g.id,'MANUAL_REVIEW' if edges else 'UNMATCHED_GOLD',tuple(sorted(reasons))))

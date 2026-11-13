@@ -22,9 +22,14 @@ def compute_metrics(value,population='all',tolerance='adaptive',sequence_scope='
     precision=div(T,E) if population=='all' else div(T,M)
     recall=div(T,G) if population=='all' else div(T,M)
     f1=div(2*T,E+G) if population=='all' else div(T,M)
+    raw_ids={e for p in papers for e in p.extractor_ids}
+    parseable_raw=sum(e.id in raw_ids and bool(e.sequence.canonical) for e in run.extractors)
+    groups=[d for d in run.duplicates if any(p.id==d.paper_id for p in papers)]
     unscoreable=[g.id for g in run.gold if g.significant and not g.sequence.canonical and any(p.id==g.paper_id for p in papers)]
     return dict(population=population,tolerance=tolerance,sequence_scope=sequence_scope,review_mode='effective' if isinstance(value,ReviewedRun) and value.events else 'automatic',
-        G=G,E=E,M=M,T=T,TP=T,FP=E-T if population=='all' else M-T,FN=G-T if population=='all' else M-T,
+        G=G,E=E,M=M,T=T,TP=T,
+        E_raw=len(raw_ids),E_parseable_raw=parseable_raw,E_unique=len(groups),E_logical=E,E_invalid=len(raw_ids)-parseable_raw,
+        multiplicity_exception_count=sum(len(d.representatives)-1 for d in groups),FP=E-T if population=='all' else M-T,FN=G-T if population=='all' else M-T,
         precision=precision,recall=recall,f1=f1,matched_correctness=div(T,M),significant_recovery=div(T,G),
         pending_gold=pending,unverified_extractor=E-M,significant_unscoreable=len(unscoreable),
         significant_all=G+len(unscoreable),unattempted_papers=sum(not p.attempted for p in run.papers),

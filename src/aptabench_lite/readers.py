@@ -113,7 +113,15 @@ def ingest(gold_bytes,extractor_bytes,config):
     for row_no,r,h in rows(gold_bytes,config.gold_sheet,required,optional):
         pid,rid,key=text(r.get(config.gold_paper)),text(r.get(config.gold_id)),text(r.get(config.gold_key))
         loc=f'{config.gold_sheet}!{get_column_letter(h.index(config.gold_sequence)+1)}{row_no}'
-        if not pid or not rid:issue('MISSING_ID','Gold requires paper and record IDs',loc,severity='error');continue
+        if not pid or not rid:
+            issue('MISSING_ID','Gold requires paper and record IDs',loc,severity='error')
+            fallback='INVALID-GOLD-'+sha256(raw_json([row_no,r]).encode()).hexdigest()[:20]
+            marker=text(r.get(config.gold_type or config.gold_status))
+            normalized=replace(normalize(r.get(config.gold_sequence)),canonical=None,status='unscoreable',warnings=('MISSING_ID',))
+            gold.append(Record(fallback,pid or None,key,normalized,text(r.get(config.gold_name)),'gold_curated_label',
+                Source(Path(config.gold_filename).name,config.gold_sheet,row_no,loc.split('!')[1],None,raw_json(r)),
+                marker in config.significant_values,'INVALID_ID'))
+            continue
         if rid in seen:raise ValueError(f'Duplicate gold record_id {rid!r}; disambiguate source IDs')
         seen.add(rid)
         if key:previous[pid]=key

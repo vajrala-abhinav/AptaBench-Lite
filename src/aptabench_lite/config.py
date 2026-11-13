@@ -1,5 +1,6 @@
 from dataclasses import dataclass, asdict
 import json
+from pathlib import PurePosixPath
 
 
 @dataclass(frozen=True)
@@ -30,7 +31,15 @@ class RunConfig:
 
     def __post_init__(self):
         for field in ('significant_values','nonsignificant_values','present_values','name_keys','attempted_keys','artifact_suffixes'):
-            object.__setattr__(self,field,tuple(getattr(self,field)))
+            values=getattr(self,field)
+            if not isinstance(values,(tuple,list)) or any(not isinstance(v,str) for v in values):raise ValueError(f'{field} must be an array of strings')
+            object.__setattr__(self,field,tuple(values))
+        for key,value in asdict(self).items():
+            if not isinstance(value,tuple) and not isinstance(value,str):raise ValueError(f'{key} must be text')
+        for key in ('gold_sheet','extractor_sheet','gold_paper','gold_key','gold_id','gold_sequence','gold_status','extractor_key','extractor_value','sequence_key'):
+            if not getattr(self,key):raise ValueError(f'{key} is required')
+        for field in ('gold_filename','extractor_filename'):
+            object.__setattr__(self,field,PurePosixPath(getattr(self,field).replace('\\','/')).name)
         if self.parser not in ('structured','simple'):raise ValueError('Parser must be structured or simple')
         if not self.significant_values:raise ValueError('Explicit significant labels required')
         if set(self.significant_values)&set(self.nonsignificant_values):raise ValueError('Status labels overlap')

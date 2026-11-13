@@ -56,3 +56,27 @@ Exact repeated motifs without name evidence, ambiguous fit placement, ambiguous 
 identical golds and contradictory duplicate names abstain. Identical-gold duplicate capacity
 retains raw physical items. These conservative §24 choices require research-owner review
 before any expansion of automatic identity acceptance.
+
+## Final verification in progress
+Executed focused suite after hardening: **50 passed in 2.85s** (browser test excluded).
+Read-only historical pure-alignment regression: 14 synthetic comparisons frozen with
+source SHA256; distances and optimal-interval counts agree. Exact assignment also
+checked against brute-force enumeration on 60 seeded integer matrices.
+Clean-source/clean-venv installation succeeded with requirements.lock; isolated `-I`
+imports confirm `aptabench` absent and Lite imported from clean-source. Independent
+sample evaluation reproduced G5 E5 TP3. No original repository changes detected.
+
+Representative inputs: 248 gold rows, 308 raw extractor items, 49 gold papers,
+44 linked attempted papers, 606 candidate comparisons. Adaptive/core/all automatic
+G97 E278 M49 TP49 FP229 FN48; 48 pending identities. This is a provisional conservative
+result, not a scientific identity guarantee. Source workbook hashes unchanged.
+Profile with Python tracemalloc enabled: engine 55.024s, export 1.402s, peak Python
+allocations 40.608 MiB, 1,281 uncached DP calls. Files remain private in
+`.local/representative/`; no historical workbooks/outputs added to Git.
+
+Browser verification: system Chromium starts and real uploads/evaluation execute.
+Test harness synchronization of Streamlit's asynchronous dropdown/rerun remains under
+investigation; full browser acceptance NOT yet verified. Browser binary CDN download
+was policy-denied; system Chromium avoids that external prerequisite.
+README, pinned dependencies, local Windows launcher, science policy, review workflow
+and acceptance matrix added. Native Windows/macOS execution has not been tested.
