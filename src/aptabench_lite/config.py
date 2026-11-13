@@ -1,0 +1,38 @@
+from dataclasses import dataclass, asdict
+import json
+
+
+@dataclass(frozen=True)
+class RunConfig:
+    gold_sheet: str = "Sheet1"
+    extractor_sheet: str = "aptamer_seq"
+    gold_paper: str = "paper_id"
+    gold_key: str = "pdf_name"
+    gold_id: str = "record_id"
+    gold_sequence: str = "gold_sequence"
+    gold_name: str = "aptamer_label_optional"
+    gold_type: str = "aptamer_type"
+    gold_status: str = "sequence_status"
+    significant_values: tuple[str,...] = ("significant_sequence",)
+    nonsignificant_values: tuple[str,...] = ("non_significant_sequence",)
+    present_values: tuple[str,...] = ("present",)
+    extractor_key: str = "pk"
+    extractor_value: str = "value"
+    extractor_name: str = ""
+    extractor_notes: str = ""
+    parser: str = "structured"
+    sequence_key: str = "sequence"
+    name_keys: tuple[str,...] = ("name", "aptamer_name")
+    attempted_keys: tuple[str,...] = ()
+    artifact_suffixes: tuple[str,...] = ()
+    gold_filename: str = "gold.xlsx"
+    extractor_filename: str = "extractor.xlsx"
+
+    def __post_init__(self):
+        for field in ('significant_values','nonsignificant_values','present_values','name_keys','attempted_keys','artifact_suffixes'):
+            object.__setattr__(self,field,tuple(getattr(self,field)))
+        if self.parser not in ('structured','simple'):raise ValueError('Parser must be structured or simple')
+        if not self.significant_values:raise ValueError('Explicit significant labels required')
+        if set(self.significant_values)&set(self.nonsignificant_values):raise ValueError('Status labels overlap')
+
+    def to_json(self):return json.dumps(asdict(self),sort_keys=True,ensure_ascii=False)
