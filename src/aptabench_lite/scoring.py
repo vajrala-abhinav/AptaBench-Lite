@@ -45,3 +45,29 @@ def paper_status(value,paper):
     metrics=compute_metrics(value,paper_id=paper.id)
     unscoreable=metrics['significant_unscoreable']
     return 'UNATTEMPTED_PAPER' if not paper.attempted else 'REVIEW_COMPLETE' if metrics['pending_gold']==0 and not unscoreable else 'MANUAL_REVIEW'
+
+
+def review_diagnostics(value, paper_id=None):
+    """Gold-level abstention inventory, counting each reason once per unresolved gold.
+
+    Descriptive only: it does not infer which candidate is biologically correct,
+    calculate hypothetical TPs, or modify any association or score.
+    """
+    from collections import Counter
+    run = base_run(value)
+    matched = {a.gold_id for a in associations(value)}
+    missing = set(value.missing) if isinstance(value, ReviewedRun) else set()
+    decision = {d.gold_id: d for d in run.decisions}
+    eligible = {g for p in run.papers if p.attempted and (paper_id is None or p.id == paper_id)
+                for g in p.gold_ids}
+    blocked = sorted(eligible - matched - missing)
+    counts = Counter()
+    for gid in blocked:
+        for reason in set(decision[gid].reasons):
+            counts[reason] += 1
+    return {
+        "unresolved_gold": len(blocked),
+        "gold_ids": blocked,
+        "reason_counts": sorted(counts.items(), key=lambda kv: (-kv[1], kv[0])),
+        "interpretation": "Reasons overlap. Counts are unresolved gold records, not errors or demonstrated missed matches.",
+    }
