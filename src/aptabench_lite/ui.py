@@ -129,14 +129,14 @@ def field_review_panel(data, results, events):
         idx=st.selectbox("Gold field record",list(range(len(visible))),format_func=lambda i:labels[i],key="field-record")
         kind,row=visible[idx]
         g=row["gold"]
-        st.json({"gold":g,"linked":row["extractor"],"comparison":row["comparison"]},expanded=False)
+        st.json(json.loads(json.dumps({"gold":g,"linked":row["extractor"],"comparison":row["comparison"]},default=str)),expanded=False)
         options=[e for e in results[kind]["predictions"] if e["paper_id"]==g["paper_id"]]
         eid=st.selectbox("Prediction candidate",[""]+[e["id"] for e in options],
             format_func=lambda x: "None / missing" if not x else x+" · "+next(e["raw"] for e in options if e["id"]==x)[:50],
             key="field-candidate")
         if eid:
             chosen=next(e for e in options if e["id"]==eid)
-            st.json(chosen,expanded=False)
+            st.json(json.loads(json.dumps(chosen,default=str)),expanded=False)
         cols=st.columns(4)
         for col,label,action in zip(cols,["Confirm identity","Reject pair","Mark missing","Leave unresolved"],
                                      ["confirm","reject","missing","unresolved"]):
@@ -367,6 +367,17 @@ def main():
         field_review_panel(extra_data,field_scores,events)
         st.download_button("Download Pool/Kd review backup",field_review_to_bytes(extra_data,events),
                            "aptabench-field-review.json",mime="application/json")
+        with st.expander("Restore Pool/Kd review backup"):
+            upload=st.file_uploader("Restore field review-state JSON",type=["json"],key="field-review-upload")
+            if upload and st.button("Restore field review"):
+                try:
+                    restored=field_review_from_bytes(extra_data,upload.getvalue())
+                    if restored[:len(events)]!=events:
+                        raise ValueError("Imported review history conflicts with locally saved history")
+                    save_field_review(extra_data,restored,field_review_path(extra_data),len(events))
+                    st.session_state["field-review-events"]=restored
+                    st.rerun()
+                except ValueError as exc:st.error(str(exc))
     st.header('Download report & resume')
     st.caption('Every committed action is autosaved under .local/reviews. Download a portable review backup before moving machines. Re-upload the identical inputs and mappings to resume.')
     include_report = st.checkbox('Include downloadable Excel report', value=True, key='include-report')
