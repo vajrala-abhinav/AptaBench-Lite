@@ -125,15 +125,18 @@ def field_review_panel(data, results, events):
     if not visible:
         st.success("All evaluated field records have an association or a missing decision.")
     else:
-        labels=[f"{kind.upper()} · {row['gold']['paper_id']} · {row['gold']['id']} · {row['status']}" for kind,row in visible]
-        idx=st.selectbox("Gold field record",list(range(len(visible))),format_func=lambda i:labels[i],key="field-record")
-        kind,row=visible[idx]
+        records={row['gold']['id']:(kind,row) for kind,row in visible}
+        def field_label(record_id):
+            kind,row=records[record_id]
+            return f"{kind.upper()} · {row['gold']['paper_id']} · {record_id}"
+        record_id=st.selectbox("Gold field record",list(records),format_func=field_label,key="field-record")
+        kind,row=records[record_id]
         g=row["gold"]
         st.json(json.loads(json.dumps({"gold":g,"linked":row["extractor"],"comparison":row["comparison"]},default=str)),expanded=False)
         options=[e for e in results[kind]["predictions"] if e["paper_id"]==g["paper_id"]]
         eid=st.selectbox("Prediction candidate",[""]+[e["id"] for e in options],
             format_func=lambda x: "None / missing" if not x else x+" · "+next(e["raw"] for e in options if e["id"]==x)[:50],
-            key="field-candidate")
+            key="field-candidate-"+g["id"])
         if eid:
             chosen=next(e for e in options if e["id"]==eid)
             st.json(json.loads(json.dumps(chosen,default=str)),expanded=False)
@@ -146,6 +149,7 @@ def field_review_panel(data, results, events):
                     new_events,_=append_field_review(data,events,action,reviewer,kind,g["id"],eid)
                     save_field_review(data,new_events,field_review_path(data),len(events))
                     st.session_state["field-review-events"]=new_events
+                    st.session_state["flash"]=f"Pool/Kd review revision {len(new_events)} saved locally."
                     st.rerun()
                 except ValueError as exc:st.error(str(exc))
     if events and st.button("Undo latest field review",disabled=not reviewer.strip()):
@@ -153,6 +157,7 @@ def field_review_panel(data, results, events):
             new_events,_=append_field_review(data,events,"UNDO_LAST",reviewer)
             save_field_review(data,new_events,field_review_path(data),len(events))
             st.session_state["field-review-events"]=new_events
+            st.session_state["flash"]=f"Pool/Kd review revision {len(new_events)} saved locally."
             st.rerun()
         except ValueError as exc:st.error(str(exc))
 
@@ -208,9 +213,19 @@ def paper_detail(value,scope,population="all",tolerance="adaptive"):
     with left:
         st.markdown('**Significant gold records**')
         unresolved=[g for g in paper.gold_ids if g not in am and g not in missing]
-        only_unresolved=st.checkbox('Show unresolved golds first',value=bool(unresolved),key='only-unresolved')
-        choices=unresolved if only_unresolved and unresolved else list(paper.gold_ids)
-        gid=st.selectbox('Gold record',choices,format_func=lambda g:f'{g} · {gm[g].name} · {len(gm[g].sequence.canonical)} nt',key=f'gold-{pid}') if paper.gold_ids else None
+        only_unresolved=st.checkbox('Show unresolved golds first',value=True,key='only-unresolved')
+        choices=unresolved+[g for g in paper.gold_ids if g not in unresolved] if only_unresolved else list(paper.gold_ids)
+        # Keep the currently inspected record across review-driven reordering.
+        # The toggle prioritizes unresolved golds; it must not hide accepted ones.
+        widget_key=f'gold-{pid}'
+        selection_key=f'selected-gold-{run.run_id}-{pid}'
+        def remember_gold():st.session_state[selection_key]=st.session_state[widget_key]
+        if choices:
+            selected=st.session_state.get(selection_key,choices[0])
+            st.session_state[selection_key]=selected if selected in choices else choices[0]
+            st.session_state[widget_key]=st.session_state[selection_key]
+            gid=st.selectbox('Gold record',choices,format_func=lambda g:f'{g} · {gm[g].name} · {len(gm[g].sequence.canonical)} nt',key=widget_key,on_change=remember_gold)
+        else:gid=None
     logical=list(paper.logical_extractor_ids)
     with right:
         st.markdown('**Extractor records**')
@@ -309,14 +324,17 @@ def main():
             with st.spinner('Evaluating fixed sequence associations…'):
                 run=_evaluate(gb,eb,cfg.to_json());path=STORE/(run.run_id+'.json')
                 value=import_review(run,path.read_bytes()) if path.exists() else run
-                st.session_state['value']=value
                 extra_data=load_fields(run,gb,eb,extra_cfg) if extra_cfg.pool_enabled or extra_cfg.kd_enabled else None
-                st.session_state['field-data']=extra_data
                 if extra_data:
                     path=field_review_path(extra_data)
-                    st.session_state['field-review-events']=field_review_from_bytes(extra_data,path.read_bytes()) if path.exists() else []
+                    field_events=field_review_from_bytes(extra_data,path.read_bytes()) if path.exists() else []
                 else:
-                    st.session_state['field-review-events']=[]
+                    field_events=[]
+                # Publish a complete run only after both sequence and optional
+                # input/review loading succeed; errors cannot leave half a run.
+                st.session_state['value']=value
+                st.session_state['field-data']=extra_data
+                st.session_state['field-review-events']=field_events
                 st.session_state['input-key']=(gb,eb,cfg.to_json(),extra_cfg.to_json())
     except (ValueError,OSError) as exc:st.error(str(exc));return
     if 'value' not in st.session_state:return
@@ -349,6 +367,9 @@ def main():
     extra_data=st.session_state.get('field-data')
     if extra_data is not None:
         st.header("Pool & Kd results")
+        if extra_data["warnings"]:
+            with st.expander("Pool/Kd input diagnostics"):
+                st.dataframe(extra_data["warnings"],hide_index=True)
         events=st.session_state.get('field-review-events',[])
         field_scores=replay_field_review(extra_data,events)
         for kind in ("pool","kd"):
@@ -398,7 +419,7 @@ def main():
                 disabled=not report_sheets,
                 key='download-xlsx',
             )
-        st.download_button('Download JSON audit',export_audit(value,metrics),'aptabench-audit.json',mime='application/json',key='download-audit')
+        st.download_button('Download JSON audit',export_audit(value,metrics,field_data=extra_data,field_events=st.session_state.get('field-review-events',[])),'aptabench-audit.json',mime='application/json',key='download-audit')
         st.download_button('Download review state',export_review(value),'aptabench-review.json',mime='application/json',key='download-review')
         st.download_button('Download mapping configuration',cfg.to_json(),'aptabench-config.json',mime='application/json')
     except ValueError as exc:st.error(str(exc))

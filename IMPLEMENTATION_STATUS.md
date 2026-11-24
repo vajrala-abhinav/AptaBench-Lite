@@ -1,7 +1,10 @@
 # AptaBench Lite implementation status
 
 Overall: **VERIFIED** for the standalone local sequence application on Python 3.12/Linux.
-Branch: `implementation/lite-standalone`. No main-branch merge or public deployment.
+Current repair branch: `fix/dashboard-merged-regressions`, based on merged main `2c2415b`.
+No main-branch merge or public deployment was performed by this repair task.
+Current dashboard validation: **70 tests passed**, including sequence and optional Pool/Kd browser flows.
+Sections 1–12 preserve historical implementation evidence; section 13 records the current repair.
 Scientific correctness is bounded by the frozen contract and tested fixtures; no claim of
 universal biological identity is made. See docs/acceptance.md for requirement-to-test mapping.
 
@@ -190,3 +193,85 @@ action and undo, optional field export, and unchanged sequence metrics.
 A branch-specific Python 3.12 CI workflow executes non-browser tests.
 **Check the current CI run before merging**; prior milestone evidence does not
 automatically validate this new feature.
+
+
+## 13. Merged-dashboard regression repair — November 24, 2026
+
+Status: **VERIFIED** locally. Branch: `fix/dashboard-merged-regressions`.
+Inspected latest main `2c2415b`, including PR #1 (three-sheet dashboard/reports)
+and PR #2 (practical review with optional Pool/Kd). The original 57 tests passed
+on merged main but did not cover the reported Pool/Kd freeze.
+
+### Confirmed failure and root cause
+
+The Pool validator introduced in `3f9a69e` used the nested expression
+`(?:[ACGTU]+|N\d+)+`. On a sufficiently long valid base prefix followed by an
+unsupported character it performs catastrophic backtracking, blocking the Python
+process and Streamlit's server. A pre-fix subprocess reproduction using 40 A bases
+plus X exceeded the two-second timeout and was killed. A long real-workbook prefix
+can therefore make Run appear endless and prevent the dashboard responding even
+when the browser is closed/reopened. The user's exact uploaded files were not
+available in this turn; the same failure was reproduced synthetically.
+
+Fix: remove the ambiguous inner repetition: `(?:[ACGTU]|N\d+)+`. The accepted
+Pool-template language is unchanged. Bounded subprocess regression checks reject
+100,000-base invalid tails quickly; exhaustive short-string checks prove agreement
+with the original validator's acceptance language. Unsupported templates are
+retained for review, not silently repaired or awarded credit. No Kd tolerance,
+unit conversions, sequence matching, normalization or scoring rules were relaxed.
+
+### Other targeted corrections
+
+- Unresolved-first sequence ordering keeps resolved golds inspectable and retains
+  the selected record across review changes. Optional field selectors use stable
+  record IDs instead of mutable list indices.
+- Predictions from papers outside the declared attempted population remain in the
+  audit but do not inflate optional-field closed-world E/FP. Source inventories
+  and existing review backup fingerprints remain preserved.
+- JSON audit downloads now include optional field inputs, automatic/effective
+  results and review events, matching the three-sheet Excel report. Field exports
+  validate replay history and reject data from a different sequence run.
+- Malformed field-review records now raise readable ValueErrors (types, field IDs,
+  timestamp/timezone and revisions) rather than crashing or silently ignoring actions.
+- Run publishes sequence and optional state together only after all loading succeeds;
+  a field input/review-load error cannot leave a half-initialized dashboard run.
+- Field review actions display a saved-revision confirmation. Test stores are isolated.
+- CI now triggers for main, fix/feature branches and pull requests, installs Chromium
+  and includes browser tests instead of covering only one old feature branch.
+  Remote CI has not been claimed as passed; the evidence below is local execution.
+
+### Executed verification
+
+- Baseline main: `.venv/bin/python -m pytest -q`: **57 passed in 15.90s**.
+- New regression fixtures reproduced the untested selector, scope, audit and
+  review-import failures before their fixes. The freeze reproduction used a
+  timeout-isolated subprocess so it could not lock this work session.
+- Final `.venv/bin/python -m pytest -q --basetemp .local/merged-tests`:
+  **70 passed in 25.88s, no failures or skips**.
+- Real Chromium tests cover both the original sequence flow and actual uploads
+  with Pool/Kd enabled, a previously hanging malformed template, Run, field review,
+  Excel/JSON download, undo, page reload and persisted review restoration.
+  Optional browser Run: **1.254s** on the synthetic regression fixture; HTTP health
+  remained 200. Evidence: `.local/merged-tests/test_optional_pool_kd_run_revi0/`.
+- Representative existing workbooks with both optional fields enabled: sequence
+  **2.696s**, optional input loading **0.028s**, export **0.562s**. Source hashes
+  unchanged. Sequence counts remain G97/E278/M49/T49. Pool G42/E44/M40/T20,
+  Kd G91/E156/M8/T4; pending identities remain explicit. Private evidence and
+  outputs: `.local/merged-representative/verification.json`, `evaluation.xlsx`,
+  `audit.json`. These measurements are observations, not promised runtimes.
+- `.venv/bin/python -m pip check`: no broken requirements.
+- Reference repository working trees remain unchanged; no private workbooks or
+  representative outputs are staged. The original master DOCX is unchanged.
+
+### Remaining scope and next action
+
+The code repairs are verified on Linux/Python 3.12. Native Windows/macOS and
+remote hosting remain unverified. Optional Pool/Kd policies were inherited from
+the merged feature branch; their scientific authorization/calibration is not
+established by these runtime tests. The repair does not change the inherited 5%
+Kd comparison rule. No public deployment or merge to main is authorized/performed.
+
+Review/merge the repair branch, or run it directly, then stop/restart the Streamlit
+server. Closing only its browser tab does not stop an already-stuck Python process.
+The repaired loopback dashboard is started and health-checked in this workspace;
+this does not restart a server on the user's separate machine.

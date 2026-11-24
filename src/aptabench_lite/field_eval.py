@@ -58,7 +58,7 @@ def normalized_pool(raw):
     value = re.sub(r"[- ]*3['′’]\s*$", "", value)
     value = re.sub(r"\s+", "", value).replace("-", "")
     value = re.sub(r"\[N(\d+)\]", r"N\1", value)
-    return value if re.fullmatch(r"(?:[ACGTU]+|N\d+)+", value) else None
+    return value if re.fullmatch(r"(?:[ACGTU]|N\d+)+", value) else None
 
 
 def pool_type(raw):
@@ -202,6 +202,14 @@ def load_fields(run, gold_bytes, extractor_bytes, config: FieldConfig):
                                  config.kd_value, "kd")
         preds["kd"] = items
         warnings.extend(errors)
+    # Gold field scope is already limited to sequence-attempted papers. Keep
+    # every prediction in the audit, but never score out-of-scope papers as FPs.
+    for kind in ("pool", "kd"):
+        for item in preds[kind]:
+            item["in_scope"] = item["paper_id"] in attempted
+            if not item["in_scope"]:
+                warnings.append({"field":kind,"source":item["source"],
+                    "problem":"Unattempted paper excluded from field scores","paper_key":item["paper_id"]})
     return {"gold": gold, "predictions": preds, "warnings": warnings,
             "config": config.to_json(), "run_id": run.run_id}
 
@@ -229,7 +237,8 @@ def field_results(data, actions=()):
     """
     results = {}
     for kind in ("pool", "kd"):
-        gold, predictions = data["gold"][kind], data["predictions"][kind]
+        gold = data["gold"][kind]
+        predictions = [e for e in data["predictions"][kind] if e.get("in_scope", True)]
         gs = {g["id"]: g for g in gold}
         es = {e["id"]: e for e in predictions}
         gp, ep = defaultdict(list), defaultdict(list)

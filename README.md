@@ -222,9 +222,24 @@ final identity/missing decision has been recorded.
 
 The same **three-sheet Excel workbook** includes optional Pool/Kd metrics in
 Simple Summary, field outcomes in Debug Log, and field mappings/review history
-in Logistics. The full sequence JSON audit and sequence review backup remain
-separate downloads. To move field review between machines, use the Pool/Kd
+in Logistics. The JSON audit includes both sequence and optional-field automatic/effective results;
+sequence review backup remains a separate download. To move field review between machines, use the Pool/Kd
 review backup, with identical workbooks and mappings.
 
 This feature branch needs verification on actual gold and extractor workbook schemas.
 It remains a local, single-user review app; not a shared authenticated service.
+
+
+## Recovery from a Pool/Kd Run that never finishes
+
+A merged Pool-template validator could hang the entire server on an unsupported
+character following a long DNA prefix. The repair preserves the accepted template
+rules while eliminating that backtracking. Closing the browser alone does not stop
+an already-running Streamlit process.
+
+Stop the terminal running this app with Ctrl+C, update to the repaired code (or
+`fix/dashboard-merged-regressions` while its merge is pending), and restart with
+the platform-specific Streamlit command above. If Ctrl+C cannot stop the process,
+terminate only the Python process running this Streamlit app using your operating
+system's process manager. Do not delete `.local/reviews`: existing review backups
+are preserved. An existing process must restart to load the fix.
