@@ -221,59 +221,62 @@ def _comparison(g, e):
 
 
 def field_results(data, actions=()):
-    """Automatic unequivocal identity, then explicit review override.
+    """Return per-field gold outcomes and closed-world metrics.
 
-    A wrong associated value is a failure; manual confirmation establishes identity
-    only. Unresolved gold records remain pending until confirmed or marked missing.
+    Exactly one effective association per gold and extractor. A manual identity
+    confirmation never changes the extracted Kd or pool value. Recompute after
+    every action; original source and auto decisions remain unchanged.
     """
     results = {}
     for kind in ("pool", "kd"):
-        gold = data["gold"][kind]
-        predictions = data["predictions"][kind]
+        gold, predictions = data["gold"][kind], data["predictions"][kind]
         gs = {g["id"]: g for g in gold}
         es = {e["id"]: e for e in predictions}
         gp, ep = defaultdict(list), defaultdict(list)
         for g in gold: gp[g["paper_id"]].append(g)
         for e in predictions: ep[e["paper_id"]].append(e)
-        pairs = {}
-        reasons = {}
+        pairs, reasons = {}, {}
         for pid in sorted(gp):
             g_items, e_items = gp[pid], ep[pid]
-            if (len(g_items) == 1 and len(e_items) == 1 and
-                not (g_items[0].get("name") and e_items[0].get("name") and
-                     name_key(g_items[0]["name"]) != name_key(e_items[0]["name"]))):
-                pairs[g_items[0]["id"]] = e_items[0]["id"]
-                reasons[g_items[0]["id"]] = "UNIQUE_PAPER_PAIR"
+            if len(g_items) == 1 and len(e_items) == 1:
+                g, e = g_items[0], e_items[0]
+                contradictory = (g.get("name") and e.get("name")
+                                 and name_key(g["name"]) != name_key(e["name"]))
+                if not contradictory:
+                    pairs[g["id"]] = e["id"]
+                    reasons[g["id"]] = "UNIQUE_PAPER_PAIR"
             elif kind == "kd":
+                # Exact explicit aptamer name is identity evidence. Numerical
+                # proximity by itself cannot assign a measurement.
                 for e in e_items:
-                    if not name_key(e.get("name")):continue
+                    if not name_key(e.get("name")): continue
                     named = [g for g in g_items if name_key(g.get("name")) == name_key(e.get("name"))]
-                    competing_e = [x for x in e_items if name_key(x.get("name")) == name_key(e.get("name"))]
-                    if len(named) == 1 and len(competing_e) == 1 and named[0]["id"] not in pairs:
+                    competing = [x for x in e_items if name_key(x.get("name")) == name_key(e.get("name"))]
+                    if len(named) == 1 and len(competing) == 1 and named[0]["id"] not in pairs:
                         pairs[named[0]["id"]] = e["id"]
                         reasons[named[0]["id"]] = "EXPLICIT_APTAMER_NAME"
             else:
-                # Pool template can establish same-library identity if unique,
-                # but no approximate matching or forcing multiple pool experiments.
+                # A shared pool contributes one library-level gold observation,
+                # not one TP for every aptamer using that library.
                 for g in g_items:
                     if not g.get("template"):continue
                     found = [e for e in e_items if e.get("template") == g["template"]]
-                    other_g = [x for x in g_items if x.get("template") == g["template"]]
-                    if len(found) == 1 and len(other_g) == 1:
+                    other_gold = [x for x in g_items if x.get("template") == g["template"]]
+                    if len(found) == 1 and len(other_gold) == 1:
                         pairs[g["id"]] = found[0]["id"]
                         reasons[g["id"]] = "UNIQUE_EXACT_POOL_TEMPLATE"
+        automatic = dict(pairs)
         missing, rejected = set(), set()
         for ev in actions:
-            if ev.get("field") != kind:
-                continue
+            if ev.get("field") != kind: continue
             gid, eid, action = ev.get("gold_id"), ev.get("extractor_id"), ev.get("action")
             if gid not in gs:
-                raise ValueError("Review gold record absent from current input")
+                raise ValueError("Reviewed gold record absent from current input")
             if action == "confirm":
                 if eid not in es or gs[gid]["paper_id"] != es[eid]["paper_id"]:
-                    raise ValueError("Review requires same-paper prediction")
+                    raise ValueError("Review must select a same-paper prediction")
                 if eid in pairs.values() and pairs.get(gid) != eid:
-                    raise ValueError("Extractor already assigned: undo or unassign its existing link first")
+                    raise ValueError("Prediction already assigned; clear that link first")
                 pairs[gid] = eid
                 reasons[gid] = "HUMAN_CONFIRMED_IDENTITY"
                 missing.discard(gid)
@@ -283,38 +286,39 @@ def field_results(data, actions=()):
                 missing.add(gid)
             elif action == "reject":
                 if eid not in es or gs[gid]["paper_id"] != es[eid]["paper_id"]:
-                    raise ValueError("Cannot reject an unrelated/unknown prediction")
+                    raise ValueError("Unknown or unrelated prediction")
                 rejected.add((gid, eid))
-                if pairs.get(gid) == eid:
-                    pairs.pop(gid, None)
+                if pairs.get(gid) == eid: pairs.pop(gid, None)
             elif action == "unresolved":
                 pairs.pop(gid, None)
                 missing.discard(gid)
             else:
                 raise ValueError("Unknown field review action")
         if len(set(pairs.values())) != len(pairs):
-            raise ValueError("Field review violates one-to-one prediction assignment")
+            raise ValueError("Field review violates one-to-one assignments")
         rows_out, passing = [], 0
         for g in gold:
             eid = pairs.get(g["id"])
             e = es.get(eid) if eid else None
             check = _comparison(g, e) if e else {}
             ok = bool(check.get("tolerant"))
-            passing += ok
+            passing += int(ok)
             rows_out.append({"field": kind, "gold": g, "extractor": e,
                              "status": ("MARKED_MISSING" if g["id"] in missing else
                                         "UNRESOLVED" if e is None else reasons[g["id"]]),
-                             "comparison": check, "passes": ok})
-        G,E,M,T = len(gold), len(predictions), len(pairs), passing
-        pending = len(set(gs)-set(pairs)-missing)
+                             "comparison": check, "passes": ok,
+                             "auto_extractor_id": automatic.get(g["id"], "")})
+        G, E, M, T = len(gold), len(predictions), len(pairs), passing
         results[kind] = {
             "rows": rows_out, "gold": gold, "predictions": predictions,
-            "pairs": pairs, "missing": sorted(missing),
-            "rejected": sorted(rejected), "pending": pending,
-            "G": G, "E": E, "M": M, "T": T, "TP": T, "FP": E-T, "FN": G-T,
+            "pairs": pairs, "automatic_pairs": automatic,
+            "missing": sorted(missing), "rejected": sorted(rejected),
+            "pending": len(set(gs)-set(pairs)-missing),
+            "G": G, "E": E, "M": M, "T": T,
+            "TP": T, "FP": E-T, "FN": G-T,
             "precision": T/E if E else None, "recall": T/G if G else None,
             "f1": 2*T/(E+G) if E+G else None,
             "matched_correctness": T/M if M else None,
-            "scope_warning": "Closed-world field counts. Extras may be real out-of-scope reports, not verified hallucinations.",
+            "scope_warning": "Closed-world field counts: unmatched predictions are not independently verified biological FPs.",
         }
     return results
