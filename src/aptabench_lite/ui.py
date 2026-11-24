@@ -309,7 +309,15 @@ def main():
             with st.spinner('Evaluating fixed sequence associations…'):
                 run=_evaluate(gb,eb,cfg.to_json());path=STORE/(run.run_id+'.json')
                 value=import_review(run,path.read_bytes()) if path.exists() else run
-                st.session_state['value']=value;st.session_state['input-key']=(gb,eb,cfg.to_json())
+                st.session_state['value']=value
+                extra_data=load_fields(run,gb,eb,extra_cfg) if extra_cfg.pool_enabled or extra_cfg.kd_enabled else None
+                st.session_state['field-data']=extra_data
+                if extra_data:
+                    path=field_review_path(extra_data)
+                    st.session_state['field-review-events']=field_review_from_bytes(extra_data,path.read_bytes()) if path.exists() else []
+                else:
+                    st.session_state['field-review-events']=[]
+                st.session_state['input-key']=(gb,eb,cfg.to_json(),extra_cfg.to_json())
     except (ValueError,OSError) as exc:st.error(str(exc));return
     if 'value' not in st.session_state:return
     if st.session_state.get('input-key')!=(gb,eb,cfg.to_json(),extra_cfg.to_json()):
