@@ -239,7 +239,9 @@ def field_results(data, actions=()):
         reasons = {}
         for pid in sorted(gp):
             g_items, e_items = gp[pid], ep[pid]
-            if len(g_items) == 1 and len(e_items) == 1:
+            if (len(g_items) == 1 and len(e_items) == 1 and
+                not (g_items[0].get("name") and e_items[0].get("name") and
+                     name_key(g_items[0]["name"]) != name_key(e_items[0]["name"]))):
                 pairs[g_items[0]["id"]] = e_items[0]["id"]
                 reasons[g_items[0]["id"]] = "UNIQUE_PAPER_PAIR"
             elif kind == "kd":
@@ -280,8 +282,8 @@ def field_results(data, actions=()):
                 pairs.pop(gid, None)
                 missing.add(gid)
             elif action == "reject":
-                if eid not in es:
-                    raise ValueError("Unknown extracted field item")
+                if eid not in es or gs[gid]["paper_id"] != es[eid]["paper_id"]:
+                    raise ValueError("Cannot reject an unrelated/unknown prediction")
                 rejected.add((gid, eid))
                 if pairs.get(gid) == eid:
                     pairs.pop(gid, None)
@@ -296,7 +298,7 @@ def field_results(data, actions=()):
         for g in gold:
             eid = pairs.get(g["id"])
             e = es.get(eid) if eid else None
-            check = _comparison(g,e) if e else {}
+            check = _comparison(g, e) if e else {}
             ok = bool(check.get("tolerant"))
             passing += ok
             rows_out.append({"field": kind, "gold": g, "extractor": e,
