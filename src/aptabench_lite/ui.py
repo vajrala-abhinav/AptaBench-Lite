@@ -241,10 +241,26 @@ def main():
     metrics=metric_display(value,pop,tol,sc)
     st.dataframe([{'Paper':p.id,'Attempted':p.attempted,'Status':paper_status(value,p),**{k:v for k,v in compute_metrics(value,pop,tol,sc,p.id).items() if k in ('G','E','M','T','pending_gold','significant_recovery')}} for p in run.papers],hide_index=True)
     paper_detail(value,sc,pop,tol)
-    st.header('Export & resume')
+    st.header('Download report & resume')
     st.caption('Every committed action is autosaved under .local/reviews. Download a portable review backup before moving machines. Re-upload the identical inputs and mappings to resume.')
+    include_report = st.checkbox('Include downloadable Excel report', value=True, key='include-report')
+    if include_report:
+        st.caption('One workbook, three focused tabs. Select which tabs to include. Default: all three.')
+        report_options = ['Simple Summary', 'Debug Log', 'Logistics']
+        report_sheets = st.multiselect(
+            'Worksheets', report_options, default=report_options, key='report-sheets'
+        )
+        st.caption('The download goes to the browser default folder, or a location your browser asks you to choose. This app cannot specify a local client-side folder.')
     try:
-        st.download_button('Download Excel',export_workbook(value,metrics),'aptabench-evaluation.xlsx',key='download-xlsx')
+        if include_report:
+            st.download_button(
+                'Download Excel report',
+                export_workbook(value, metrics, sheets=report_sheets) if report_sheets else b'',
+                'aptabench-evaluation.xlsx',
+                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                disabled=not report_sheets,
+                key='download-xlsx',
+            )
         st.download_button('Download JSON audit',export_audit(value,metrics),'aptabench-audit.json',mime='application/json',key='download-audit')
         st.download_button('Download review state',export_review(value),'aptabench-review.json',mime='application/json',key='download-review')
         st.download_button('Download mapping configuration',cfg.to_json(),'aptabench-config.json',mime='application/json')
