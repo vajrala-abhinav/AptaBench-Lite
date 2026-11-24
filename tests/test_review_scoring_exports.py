@@ -89,7 +89,7 @@ def test_M15_exports_trace_injection(make_run):
     gold_cells=[cell for row in ws for cell in row if cell.value=='=gold']
     assert gold_cells and all(cell.data_type=='s' for cell in gold_cells)
     c=next(c for c in r.candidates if c.id==r.automatic[0].candidate_id)
-    assert any(cell.value==c.core.aligned_gold for row in ws for cell in row)
+    assert any(str(cell.value)==c.core.aligned_gold for row in ws for cell in row)
     assert any(cell.value==json.dumps(c.core.operations) for row in ws for cell in row)
     a=json.loads(export_audit(r));assert a['effective_metrics']['all/adaptive/core']['T']==1
     assert a['run']['candidates'][0]['core']['operations']==list(c.core.operations)
