@@ -11,7 +11,7 @@ from .field_eval import field_results
 
 
 def canonical(value):
-    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False).encode()
+    return json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(",", ":"), allow_nan=False, default=str).encode()
 
 
 def fingerprint(data):
