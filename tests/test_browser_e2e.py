@@ -64,10 +64,10 @@ def test_browser_upload_review_export(tmp_path):
             audit=json.loads(file.read_text());m=audit['selected_metrics']
             assert (m['M'],m['T'],m['matched_correctness'])==(4,3,.75)
             assert len(audit['run']['automatic'])==3 and len(audit['effective_associations'])==4
-            with page.expect_download() as download:page.get_by_role('button',name='Download Excel',exact=True).click()
+            with page.expect_download() as download:page.get_by_role('button',name='Download Excel report',exact=True).click()
             download.value.save_as(tmp_path/'evaluation.xlsx')
             from openpyxl import load_workbook
-            assert load_workbook(tmp_path/'evaluation.xlsx')['Sequence'].max_row==6
+            assert load_workbook(tmp_path/'evaluation.xlsx').sheetnames==['Simple Summary','Debug Log','Logistics']
             page.get_by_text('Core edits:',exact=False).scroll_into_view_if_needed()
             page.screenshot(path=str(tmp_path/'review.png'),full_page=True)
             (tmp_path/'browser-evidence.json').write_text(json.dumps({'score_toggle_rerun_s':rerun_s,'metrics':m,'uploaded_files':2,'automatic_links_preserved':True},indent=2))
