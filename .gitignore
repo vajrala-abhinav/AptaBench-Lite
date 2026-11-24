@@ -179,3 +179,10 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+# Private inputs and local run/review state
+.local/
+reports/
+inputs/
+*.xlsx
+!examples/*.xlsx
+!tests/fixtures/*.xlsx

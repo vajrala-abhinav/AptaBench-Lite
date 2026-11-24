@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+[project]
+name = "aptabench-lite"
+version = "0.1.0"
+description = "Standalone significant-reference sequence evaluator and review application"
+requires-python = ">=3.12,<3.13"
+dependencies = ["streamlit==1.67.0", "openpyxl==3.1.5", "xlsxwriter==3.3.1"]
+[project.optional-dependencies]
+dev = ["pytest==9.2.0", "playwright==1.65.1"]
+[project.scripts]
+aptabench-lite = "aptabench_lite.cli:main"
+[tool.setuptools.packages.find]
+where = ["src"]
+[tool.pytest.ini_options]
+testpaths = ["tests"]

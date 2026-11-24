@@ -1,0 +1,1094 @@
+AptaBench Lite
+MASTER DESIGN, MATCHING & SCORING CONTRACT
+Standalone internal evaluator · Sequence matching · Scoring · Visual adjudication · Dashboard · Deployment
+Design status: FROZEN FUNCTIONAL CONTRACT (November 13, 2026)Intended readers: AptaBench research team, PI, implementers, Codex, maintainersVersion: Lite design v1.0 (specification, not a claim that software is implemented)Primary boundary: All automated sequence scoring evaluates significant gold sequences only.Non-goal: This document does not assert that a future implementation has been validated or that the matcher can guarantee biological identity.
+The one-sentence contract. Within each correctly linked paper, AptaBench Lite uses unique strict sequence anchors, sequence-associated name evidence, exhaustive full-gold semi-global comparisons, context-aware one-to-one assignment, conditional global-alignment tie-breakers and conservative abstention to establish associations; then it scores the same fixed associations under transparent strict/tolerant and whole/core definitions, permits visual human adjudication, and exports exactly the same result to the dashboard, Excel and JSON.
+
+Contents and reading guide
+Status, scope, scientific philosophy and frozen decisions
+Glossary, entities and non-negotiable invariants
+End-to-end architecture and concept map
+Source XLSX files, sheet/column mapping and ingestion
+Paper linkage, attempted papers and significant-gold scope
+Sequence and name standardization contract
+Extractor deduplication and gold-near-duplicate diagnostics
+Alignment mathematics and error policy
+Strict locking, name evidence and candidate-graph construction
+Global assignment, conditional tie-breakers and runner-ups
+Decision state machine, reason codes and stopping conditions
+Sequence scoring definitions and metric populations
+Manual review and post-review metrics
+Paper-level reviewer workspace and exact actions
+Dashboard information architecture and user experience
+Excel, JSON and audit export contracts
+Application package, function boundaries and data models
+Caching, performance, determinism and invalidation
+Local installation, team access and hosted deployment
+Privacy, security, concurrency and recovery
+Acceptance tests, adversarial fixtures and QA gates
+Implementation phases, migration and version control
+Detailed execution walk-throughs
+Decisions intentionally deferred and change-control policy
+Final engineering acceptance checklist and references
+The headings are navigable in Word’s Navigation Pane. Mathematical examples and sample JSON are illustrative, not measurements from an actual evaluated run.
+1. Status, scope, scientific philosophy and frozen decisions
+1.1 Why AptaBench Lite exists
+The rushed AptaBench deadline evaluator implements genuine sequence alignment, candidate generation, one-to-one assignment, review handling and reporting, but much of it is concentrated in large scripts and imports components from the original AptaBench V1.2 codebase. AptaBench Lite must be a small standalone application, not a cosmetic dashboard on the existing dependency chain. A fresh clone with its own documented installation must run without the old aptabench package, sibling virtual environments, external research-script paths, or Codex. The existing implementation is a behavioral reference for regression tests, not a runtime dependency.
+The intended use is internal review of extractor .xlsx files by the research team and PI. It is not a universal aptamer identity oracle, a sequence generation system, or a mechanism for validating publications independently of gold curation. Its first job is to measure recovery against the team’s significant reference sequences and transparently expose uncertainty.
+1.2 Frozen decisions: short version
+Domain
+Frozen decision
+Consequence
+Reference scope
+Significant gold sequences only
+Exclude non-significant gold from matching, competition and all sequence denominators
+Unit of identity
+One paper; stable gold and extractor IDs
+No cross-paper sequence matching
+Duplicate extractor removal
+Exact standardized sequence equality only, per paper
+No alignment-based/fuzzy deletion; preserve source multiplicity and provenance
+Stage 1
+Lock unique strict forward whole-string matches
+Contested identical identities and material conflicts cannot be resolved by row order
+Stage 2
+Use sequence-associated aptamer names as evidence
+Run a mini alignment of named pairs; never grant TP on name alone
+Stage 3
+Compare every remaining gold against every remaining extractor in that paper
+Construct candidate graph before contextual assignment; no greedy first-best consumption
+Main alignment
+Full-gold semi-global/fitting edit distance
+Gold must be fully consumed; extractor terminal flanks are free
+Minimum tolerance
+At least one edit for positive-length sequences
+B(L) = max(1, min(4, floor(sqrt(L)/3))); no special hardcoded 8-mer exception
+Tie-break
+Global edit distance/completion only when viable candidates compete
+Whole-string mismatch cannot veto an otherwise unique valid core fit
+Rival examination
+Use runner-ups only for unresolved contested components
+No unbounded rescue/backtracking loops
+Assignment
+Paper-wide one-to-one and optional unmatched nodes
+E_p >= G_p is a diagnostic, not a requirement to fill every gold
+Ambiguity
+Stop at manual review if global completion and context do not resolve it
+Prefer abstention to a questionable FP
+Scoring
+One fixed association set; configurable value criteria
+Toggling metric view never rematches
+Dashboard choices
+Population: All sequences / Matched only; Tolerance: Strict / Adaptive; Scope: Whole string / Core
+Only three primary controls, not dozens of scientific toggles
+All-sequences metrics
+Closed-world significant-reference convention
+Pending and extra predictions are provisional non-successes, not independently verified hallucinations
+Matched-only metrics
+Conditional correctness of accepted pairs
+Accompany with significant-gold recovery and matched denominator
+Review UI
+Per-paper side-by-side gold/extractor alignment
+Accept association, reject pair, mark missing, leave unresolved, explicitly reassign/undo
+Review coloring
+Green match; yellow insertion/deletion; red substitution; gray extractor-only free flank
+The dashboard and Excel use the identical stored alignment trace
+Reproducibility
+Immutable automatic result + reviewer-event overlay
+Save source hashes, settings, mapping, code version, action history
+1.3 Three independent questions
+The design always separates: (i) nucleotide comparison — how close are two strings under a defined alignment? (ii) record correspondence — does this extractor item represent this gold aptamer? (iii) reporting correctness — given a defensible correspondence, does its sequence pass the chosen strict/tolerant criterion? No function answering one question may secretly answer the other two. An excellent edit distance cannot establish identity when multiple golds compete; a trustworthy name can establish a plausible identity even when the nucleotides are wrong; a human association confirmation is not a manual TP override.
+1.4 What this specification freezes, and what it does not
+This document freezes observable behavior, invariants, input/output semantics, decision boundaries, user interactions and tests. It does not claim a statistically calibrated probability of identity, a biological minimum sequence length, or an experimentally validated optimum assignment margin. Where such a quantitative rule has not been agreed, implement a conservative manual-review fallback, log the exact reason, and do not invent a new confidence percentage. Development teams may select equivalent libraries and internal algorithms if tests and behavior remain identical.
+1.5 Scope of other fields
+The Lite dashboard can later extend to pool type/template and Kd, and the upload page may offer field selection. Those are future or separately specified modules. This document is normative for sequence matching and scoring. Pool or Kd evidence may be displayed as provenance/context only; neither can silently convert a sequence into a TP. The promised minimum complete application is the sequence module end to end.
+2. Glossary, entities and non-negotiable invariants
+2.1 Objects that must not be conflated
+Term
+Exact meaning
+Gold paper
+A gold reference document identified by stable paper_id (e.g., AB003) and paper filename.
+Gold record
+One curated reference aptamer row with stable record_id, significant-status annotation and gold sequence. Multiple records can share bases.
+Gold sequence
+Original reference nucleotide string, plus validated canonical string and parse status.
+Extractor paper
+A source workbook row/paper key identifying which PDF the extractor was processing.
+Extractor item
+One original sequence value inside a structured cell/list; has its own immutable source ID, even if identical to another item.
+Duplicate group
+Exact canonical base string shared by >=2 extractor items in one paper; not necessarily the same biological identity.
+Representative
+One item serving as computational representative for a duplicate group; raw member IDs remain visible.
+Candidate edge
+A compared gold_record_id × extractor_item_id relationship with evidence; not an accepted association.
+Accepted association
+A chosen one-to-one gold/extractor relationship, either automatic or human-confirmed.
+Value pass
+An accepted pair satisfying the currently selected strict/tolerant, whole/core sequence criterion.
+Pending review
+Gold/extractor relation or gold outcome not resolved sufficiently to accept. No TP yet.
+Missing gold
+A significant gold the reviewer explicitly marked without an extracted counterpart; it is not an unattempted paper.
+Attempted paper
+A gold paper explicitly present in the extractor batch or confirmed in batch metadata as processed.
+Unattempted paper
+Gold paper not declared attempted by the selected input batch; exclude from default attempted-run metrics.
+Core alignment
+Semi-global alignment fitting all gold bases to some contiguous part of an extractor string.
+Whole alignment
+Global alignment penalizing all bases, including terminal extras; used in scored whole criteria and conditional tie-breaks.
+Closed-world score
+A score where every unique in-scope prediction not qualifying as a TP is provisionally counted as FP relative to significant golds.
+Review event
+Append-only record of a person’s action over automatic results; distinct from cached alignment computation.
+2.2 Always-true invariants
+A gold is never paired to an extractor from a different paper; paper alias collisions are errors/review, not invitations to sequence-search across papers.
+One logical extractor item is assigned to no more than one gold; one gold is assigned to no more than one extractor. Legitimate duplicate-item capacity must remain explicit.
+No gold record is removed from scoring because it was difficult to match, pending review or missing. Only documented scope/invalidity/attempt filters may remove gold from a declared denominator.
+No raw extractor record is lost. Strict duplicate suppression is a scoring/search policy, not destructive deletion from the source/audit.
+Changing a display scoring toggle does not change accepted associations, review decisions, raw items, or caches of alignments.
+An out-of-tolerance human-confirmed correspondence remains a failed sequence value in a criterion that rejects it.
+A manual-review record cannot become TP before a sufficiently resolved association exists; dashboard denominators never shrink merely due to abstention.
+An exact semi-global core fit with long extractor flanks stays valid for core scoring even if whole-string completion is poor.
+Nothing short of a one-to-one conflict-aware assignment can resolve contested candidate use; no Excel source order as a biological tie-breaker.
+One stored alignment trace is the source for numerical edit counts, green/yellow/red highlighting and Excel presentation.
+All automatic decisions have auditable reason codes; all human decisions are recorded and reversible with history.
+E_p >= G_p signals potential numerical capacity, never confirmed sequence completeness.
+3. End-to-end architecture and concept map
+
+Figure 1. Normative algorithm-to-dashboard concept map. Arrows indicate data flow, not multiple independent evaluators.
+3.1 Architectural layers
+Input adapters read workbooks, select sheets, expose column maps, parse serialized list cells and assign source provenance. Normalization and linking safely resolve paper aliases, canonicalize parseable sequences and group exact duplicates. Candidate engine computes strict equality, name support, gold-near-duplicate warnings and full-gold fitting results. Resolver performs unique strict anchoring, one-to-one optimization, conditional global tie-breaking, competitor checks and abstention. Scorer receives the fixed effective association set and calculates the two population views under the four value criteria. Review service overlays human events and reruns only the necessary association/metric aggregation logic. Presentation adapters render Streamlit pages, colored alignments, Excel and JSON from the exact same result objects.
+3.2 Non-circular execution rule
+No scoring percentage may be used to select a more favorable association for the currently viewed metric. In particular, selecting Strict whole must not trigger a fresh assignment optimizing strict-whole TP count; selecting Adaptive tolerant + Core must not trigger a tolerant-specific reassignment. Association is resolved once using the prescribed evidence hierarchy. Every view scores that same fixed selection. A change to scientific matching policy or input workbooks is a new evaluation run with a new run ID; changing a display criterion is not.
+3.3 Two kinds of state
+Run state is immutable: input hashes, canonical objects, candidate comparisons, strict anchors, automatic association graph and automatic decisions. Review state is append-only and mutable only through validated events: confirmations, rejections, mark missing, reassignment, undo. The effective state is computed by replaying review events over the automatic run. The UI does not mutate its own data frame and assume the backend somehow agrees; the backend transaction validates and returns the effective result.
+4. Source XLSX files, sheet/column mapping and ingestion
+4.1 Supported upload contract
+The minimum run requires (a) a gold .xlsx reference (uploaded or selected as the approved local team reference) and (b) an extractor .xlsx file. A user may choose an extractor worksheet and map its paper identifier, sequence values and optional name-evidence columns. A gold sheet and the relevant gold columns are also selectable. Read-only previews display mapped source columns and representative parsed cells before Run. A changed mapping invalidates the applicable run; it must not reinterpret old cached results silently.
+Use the AptaBench legacy workbook format as an auto-detectable preset, not a hidden hardcoded requirement. Accept renamed column headers via manual mapping. Validate actual selected headers and value shapes; never assume every workbook will use the same physical letters. Workbook files must not be modified in place.
+4.2 Gold reference: known default schema
+Actual historic location
+Meaning
+Lite handling
+Sheet1!A / paper_id
+Stable paper ID
+Required; same ID may repeat on successive gold records
+Sheet1!B / pdf_name
+Gold source PDF name
+Required for paper alias linking; may be blank on continuation rows
+Sheet1!E / record_id
+Gold row identity
+Required; preserve punctuation, e.g., hyphen vs underscore
+Sheet1!G / aptamer_label_optional
+Curated aptamer name
+Optional identity evidence
+Sheet1!H / gold_sequence
+Reference nucleotide string
+Required for scoreable sequence comparisons
+Sheet1!I / sequence_status
+Significant annotation
+Required for significant-only scope, with explicit mapping of accepted labels
+Sheet1!J:N
+Sequence source/evidence/notes
+Preserve as provenance; use only according to reliable item-level context policy
+Other gold columns
+Pool, Kd and curation metadata
+Preserve or ignore for sequence scoring; no cross-field TP promotion
+Forward-fill safety: when the gold filename cell is blank on a continuation row, inherit the filename only from a previous row with the same paper ID. Never forward-fill across an AB paper-ID change. Reject duplicate record_id collisions within one source run unless disambiguated by a documented source key. Treat blank/ambiguous status as an explicit scope-configuration issue, never silently as significant.
+4.3 Extractor reference: known default schema
+Historic location
+Meaning
+Lite handling
+aptamer_seq!A / pk
+Extractor paper key
+Required paper identifier for linking
+aptamer_seq!B / source_file
+Source file/context
+Preserve
+aptamer_seq!C / evidence_location
+Paper evidence location
+Preserve
+aptamer_seq!D / where_in_text
+Extraction context
+Preserve, non-authoritative
+aptamer_seq!E / confidence
+Extractor’s confidence
+Diagnostic only; never ground truth
+aptamer_seq!F / value
+Serialized list of per-item dictionaries
+Parse, each sequence gets own extractor item ID; notes can carry explicit aptamer name
+aptamer_seq!G / primer_match
+Extractor-side primer check
+Diagnostic only, never a correctness verdict
+aptamer_name!F / value
+Separate list of names
+Do not join by list index to sequence items
+A paper row may contain zero, one or many sequence items in a structured F cell. Each item must preserve workbook name, worksheet, row, physical cell, list index, raw dictionary and the original sequence text. A simple table with one row per sequence is also acceptable if configured. The parser must not treat a serialized dictionary as the nucleotide sequence itself.
+4.4 Parsing structured cells safely
+Prefer strict JSON when possible. If historic input uses Python-style literal list/dict serialization, support a restricted safe parser such as ast.literal_eval after input-size and nesting limits; never call eval. Validate list/dict types and the expected sequence key. Preserve original notes; reject pathological nesting, unexpected binary values, excessive sequence lengths and unexplained multi-value encodings with actionable diagnostics. Map item-level names only if they are explicitly attached to the corresponding sequence item, never by coincidence of list order across independent worksheets.
+4.5 Input preview and validation rules
+Before Run, display selected sheet names, field mappings, row counts, paper count, count of significant gold records, count of scoreable gold bases and per-paper extractor item counts. Show invalid rows with reason, source cell and a fix suggestion. Distinguish an empty spreadsheet, absent sheet, malformed value list, empty extracted sequence, unrecognized status marker, duplicate paper ID alias and unsupported chemical sequence syntax. Invalid source data remains recorded but cannot be auto-declared a TP or silently discarded. A successful run must produce an input-validation report even when some records are excluded.
+5. Paper linkage, attempted papers and significant-gold scope
+5.1 Paper linking procedure
+Index gold papers by stable paper_id, raw pdf_name and a conservative deterministic normalized filename alias. Preserve original strings.
+Index each extractor pk under the selected paper-key column. Normalize only documented harmless filename differences, e.g., peripheral whitespace, terminal .pdf and known artifact suffixes if configured.
+Use exact raw key agreement first; otherwise accept a unique documented normalized alias. Do not fuzzy-link by title or by nucleotide content.
+If one extractor key maps to multiple gold papers, stop that paper with PAPER_LINK_AMBIGUOUS; do not compare candidate sequences across either paper.
+If extractor key maps to none, retain its predictions as unmatched-paper inventory and surface a linkage issue. Do not silently count them against an unrelated reference paper.
+Emit one PaperContext per linked attempted paper with its source keys, mapping evidence and immutable paper-scoped IDs.
+5.2 Attempted-run population
+A gold paper is attempted when the input batch explicitly contains its paper key or an independently configured batch manifest says it was processed. A present paper row with an empty sequence list is still an attempted paper: its scoreable significant golds can become FNs. A gold paper absent from the batch and manifest is unattempted and excluded from default per-run precision/recall denominators; report it separately. An unlinked extractor paper stays in the validation/linkage inventory until its paper association is corrected.
+5.3 Significant reference selection
+Within attempted, linked papers, select only records whose curated sequence annotation maps explicitly to significant. Non-significant records are excluded from every sequence candidate graph, strict lock, gold-near-duplicate check, association resolver and sequence denominator. Their rows remain in the underlying reference file, but Lite never uses them to improve a significant-only assignment. Do not use non-significant references to clear out otherwise unmatched extractor predictions; doing so would introduce an inconsistent comparison scope.
+If a significant gold has a missing/unsupported canonical sequence, report a significant-but-unscoreable reference count. Exclude it only from numerical scoreable-gold denominator, not from the metadata/curation problem report. Never claim 100% significant-gold recovery without disclosing unscoreable significant golds. Maintain both G_significant_all and G_significant_scoreable.
+5.4 Completeness count
+For each paper, report G_p scoreable significant gold count, E_raw extractor item count and E_unique post-strict-dedup scoreable unique extractor prediction count. If E_unique >= G_p, label numerically sufficient candidates, not complete. If E_unique < G_p, label numerically insufficient to recover all golds one-to-one, unless a deliberately documented duplicate-multiplicity exception changes the logical item count. The completeness diagnostic must never force extra edges or modify the solver objective.
+6. Sequence and name standardization contract
+6.1 Standardization must be lossless and auditable
+A normalized sequence is not a replacement for the raw cell. For every gold and extractor item, retain: raw_sequence, canonical_sequence when valid, parse_status, raw source location, exact list-item index, normalization operations in order, warnings, source-to-canonical character mapping (where possible), and rejected syntax. Display raw on request. A normalization transformation must not manufacture a nucleotide absent from the source. The engine never silently deletes internal letters or converts one biological alphabet into another.
+6.2 Allowed default operations
+Raw feature
+Default operation
+What must not happen
+Lowercase ASCII acgt
+Uppercase to ACGT
+Treat case as a biological mismatch
+Harmless whitespace/newlines between nucleotides
+Remove as formatting; log count and offsets
+Remove internal non-whitespace symbols or ambiguous chemical labels
+Leading/trailing spaces
+Trim and log
+Trim biological bases from either end
+Explicit 5' / 3' terminal text, typographic prime labels
+Strip only if unambiguous boundary annotations and documented parser rule
+Strip arbitrary 5, 3 or punctuation inside a sequence
+DNA bases A/C/G/T
+Keep literally
+Reverse/complement implicitly
+RNA base U
+Keep U literally
+Convert U↔T implicitly
+Mixed T/U alphabet
+Flag for review or validate under a clearly specified declared chemistry policy
+Treat DNA and RNA as automatically interchangeable
+IUPAC ambiguous symbols (N, R, Y etc.)
+Preserve literal text; flag ambiguity for auto matching
+Treat N as wildcard by default
+Non-base characters, modification tags, bracketed chemistry
+Preserve and classify unsupported/modified
+Drop /Bio/, /5Phos/, FAM, linkers, deoxy/2’-O modifications and claim clean equality
+Unicode characters resembling bases
+Flag suspicious Unicode
+Silently translate Cyrillic/Greek lookalikes to Latin nucleotides
+Gap characters - in source string
+Retain as source syntax/flag unless explicitly approved as a notation
+Assume source dashes are already valid alignment gaps
+Empty or null sequence
+Mark missing/invalid; no alignment
+Convert to empty-string TP
+Canonicalization is intentionally conservative. It is better to send a rare chemistry-heavy sequence to review than to award a false positive-looking TP after undocumented transformations. If optional future modes support RNA transcription equivalence, reverse complement, or modification-aware stripping, those modes must be disabled by default, versioned, displayed in run metadata and tested separately. Diagnostic comparisons never automatically become forward score passes.
+6.3 Stable name keys and provenance
+Names are processed independently from nucleotide strings. Preserve raw_name, name_source and name_confidence_class (e.g., sequence_item_note, gold_curated_label, paper_level_inventory_only). A strict name key may trim leading/trailing whitespace, collapse consecutive whitespace and apply Unicode case folding. Preserve significant digits, variant suffixes, hyphens, periods and other punctuation unless an explicitly approved synonym map exists. SMZ1 and SMZ1S are different; HF3-58 and HF3 58 are not a guaranteed identity.
+An extractor-side paper-level aptamer_name list may have the same apparent length as the aptamer_seq list. This is not evidence of positional correspondence. Only names explicitly embedded in, or independently provenance-linked to, the specific sequence item are eligible to provide strong name evidence. Otherwise mark NAME_PAPER_LEVEL_ONLY and show the names as paper context with zero automatic identity weight.
+6.4 Orientation and provenance of transformations
+Forward sequence is the only automatically scored orientation in v0.1. An optional diagnostic may calculate reverse or reverse-complement distance, but the result must be tagged DIAGNOSTIC_REVERSE_OR_RC, visibly separate from forward and never used for a default TP. Likewise, no inferred fixed primer is appended to a gold core and no extractor flank is deleted during preprocessing. Only the fitting alignment determines which terminal bases are ignored for core matching.
+6.5 Standardization acceptance examples
+Raw example
+Canonical/handling
+Expected disposition
+acgT acgT
+ACGTACGT
+Scoreable; log case/whitespace
+5'-ACGTACGT-3'
+ACGTACGT if label parser unambiguously recognizes ends
+Scoreable; log terminal label removal
+ACG UACG
+ACGUACG
+Literal RNA bases retained
+ACGTNACG
+Ambiguous canonical token retained
+Diagnostic/manual depending evidence policy; no wildcard matching
+/5Bio/ACGT
+Original preserved; modification markup flagged
+Not silently converted to ACGT TP
+ACG-ACG
+Unsupported source gap symbol flagged
+No automatic source-gap stripping
+ACGТ with non-Latin last glyph
+Unicode/confusable warning
+No silent correction to Latin T
+ACG (gold) vs ACGT (extractor)
+Both parse literally
+Comparison handled by alignment; no normalization trimming
+7. Extractor deduplication and gold-near-duplicate diagnostics
+7.1 Exact extractor deduplication, and nothing more
+The duplicate equivalence key is (linked_paper_id, exact_canonical_forward_sequence). A group is formed only if both strings are validated and strictly equal after the approved standardization in §6. Never call alignment or tolerance to decide whether two predictions are duplicates. A one-base substitution, one-base insertion or deletion, reverse complement, or T/U change does not qualify as duplicate removal.
+For each group, create duplicate_group_id, canonical_sequence, member extractor_item_ids, original positions/names/notes and one deterministic representative. Choose the representative by a stable source-ID sort, not extractor confidence or advantageous correctness. Compute the alignment once per unique canonical value; preserve individual members in the audit and detailed review. Default scoring uses unique canonical predictions (E_unique), matching the agreed Lite policy; label this convention in metadata. Raw item counts remain visible, so an analyst can recognize how much deduplication changed the denominator.
+7.2 Suppression is not destruction
+DUPLICATE_SUPPRESSED means excluded from the unique-prediction matching/scoring population, not erased from the source. The reviewer must be able to expand a duplicate group and see every original item and associated note. Exact duplicates with contradictory names must generate an identity warning; they may not silently inherit the representative’s name. A duplicate group is a sequence equivalence class, not automatically one aptamer identity.
+7.3 Identical golds: the multiplicity exception
+If multiple distinct significant gold records within one paper contain exactly the same canonical sequence, one sequence string alone cannot identify which gold record it corresponds to. The source still has distinct gold IDs and possibly distinct aptamer names. Strict whole equality does not justify arbitrarily locking one based on row order. Maintain enough extractor item capacity from an exact duplicate group to avoid deleting potentially legitimate independently named predictions, or flag the group as an explicit identity/multiplicity conflict for review. This exception must not reintroduce approximate deduplication: raw item presence and name evidence are the only reasons to retain distinct identical entries.
+Two acceptable implementation patterns: (a) keep original items in the assignment graph for identity-conflict groups, while sharing the computed alignment; or (b) use a duplicate-group node with explicit capacity equal to retained raw members and reconstruct exact source IDs in assignments. The system must never assign one physical item ID twice.
+7.4 Gold-near-duplicate diagnostic
+Before complex resolution, within each paper compare the significant canonical gold records to each other. With at most roughly eight significant aptamers in the typical intended dataset, this is at most 8*7/2 = 28 pairs; the cost is negligible relative to full evaluation. Mark exact equality, edit distance, near-tolerance collisions, shared cores and potentially non-discriminative repeated motifs. One candidate is near-duplicate-sensitive when it plausibly matches two distinct golds under the configured tolerance. This diagnostic is evidence attached to the graph, not an independent deletion step and not an automatic verdict that either gold is wrong.
+The baseline quantitative hint may mark a pair if its gold-to-gold edit distance is within max(B(L_i), B(L_j)); this is a diagnostic flag only, not a sufficient definition of identity or a replacement for the full-gold candidate comparison. A legitimate gold pair can differ by one edit and still represent different molecules. When the available evidence cannot distinguish them, abstain and show both.
+7.5 Count invariants and audit
+For each paper, keep E_raw, E_parseable_raw, E_unique, E_duplicate_suppressed, E_invalid, plus an explicitly documented multiplicity-exception count. They must reconcile to source item IDs. All unique source IDs used in accepted pairings must be traceable back to an original workbook row and item index. No post-hoc FP removal is permitted merely because a prediction was inconvenient to classify.
+8. Alignment mathematics and error policy
+8.1 Strict whole-string equality
+After approved canonicalization, strict_whole(G,E) = (G == E). No edits, no overhangs, no reverse complement, no tolerated mismatch. This is our strongest nucleotide-and-scope agreement. It is not sufficient to distinguish two distinct gold records that happen to have identical strings, nor to overcome a material explicit name contradiction without surfacing review.
+8.2 The primary semi-global/full-gold-fitting alignment
+Use unit-cost Levenshtein alignment (match=0, substitution/insertion/deletion each 1) with all L gold nucleotides consumed. The extractor can have an arbitrary free terminal prefix and suffix, but no free internal skip: internal gaps count as indels. The best fit is the minimum edit distance between the entire gold and a contiguous region of the extractor; store the trace, fitted extractor start and end, and overhang lengths. Ordinary local alignment is not acceptable because it can ignore gold ends and inflate similarity.
+If extractor is shorter, the same full-gold consumption requirement penalizes missing gold bases; it must not simply declare the shorter string a perfect partial-gold fit. For an extractor of length 40 against a gold of length 84, at least 44 gold bases must be represented as gaps/edits if it only contains a 40-base fragment. Reverse-complement hits can be diagnostic but not automatic passes.
+A valid trace must include operation counts match, substitution, insertion, deletion, optional alignment gap positions, gold coordinate span [0,L) and extractor fitted interval. Store whether there are multiple equally minimal fitted intervals. For repeated motifs, ambiguous optimal placement is an identity warning even when the edit distance is zero.
+8.3 Global alignment
+Global alignment consumes both complete strings and penalizes every mismatch, inserted base, deleted base and terminal overhang. Compute it for whole-string value scoring, and conditionally for comparison of otherwise plausible competing semi-global candidate edges. Its completion is relative to gold length for comparability to the original formula; displayed percentages are clamped at zero. A long extractor containing an exact gold core can have terrible global completion but still be a legitimate core recovery. The global score has no authority to reject that unique core association by itself.
+8.4 Frozen adaptive error budget
+For positive gold length L, with integer arithmetic at the final decision:
+Frozen budget formula: B(L) = max(1, min(4, floor(sqrt(L)/3))).
+Implement the exact integer equivalent max(1, min(4, isqrt(L // 9))) if proved equivalent by tests for all supported lengths, or use an exact integer square-root strategy that cannot incur floating-point boundary drift. L=0 is invalid, not a zero-length TP. The original evaluator had a zero-edit allowance for golds shorter than 9 nt; Lite raises that minimum to one because a one-base deletion in an 8-nt aptamer can still represent a meaningful, recoverable extraction.
+Gold length
+Allowed edits B(L)
+Minimum edit-based completion
+3 nt
+1
+66.67% (low-discriminativeness warning)
+8 nt
+1
+87.50%
+9 nt
+1
+88.89%
+25 nt
+1
+96.00%
+36 nt
+2
+94.44%
+40 nt
+2
+95.00%
+80 nt
+2
+97.50%
+81 nt
+3
+96.30%
+84 nt
+3
+96.43%
+100 nt
+3
+97.00%
+144 nt
+4
+97.22%
+200 nt
+4
+98.00%
+Editorial note: The minimum one-edit budget at very short lengths is a candidate/value tolerance, not a permission to auto-associate an ambiguous 3-mer. Short, repetitive or primer-like matches need stronger uniqueness/identity evidence; otherwise the engine abstains. Do not introduce an unapproved hard minimum-length veto in response to this warning.
+8.5 Completion and threshold decision
+For edit distance d under the selected comparison mode, define completion_pct = 100 * max(0, 1 - d/L). The strict criterion is d == 0; the adaptive criterion is d <= B(L), using integer d and B(L), never rounded display percentages. A displayed 96.4% cannot override a distance failure. Optional diagnostic 2*B(L) is allowed in internal technical exports but is not a main dashboard toggle and is not used to change matching associations.
+8.6 Differences between core and whole string
+Gold ↔ extractor
+Core comparison
+Whole comparison
+Default interpretation
+Equal strings
+Exact, d=0
+Exact, d=0
+Strict whole + strict core pass
+Entire gold is an exact substring of a longer extractor
+Exact core, d=0
+Terminal extras charged
+Core pass; whole may fail
+Gold contains one internal nucleotide absent from extractor
+One deletion
+One deletion
+Tolerant pass if budget permits; strict fail
+Extractor has one extra internal nucleotide
+One insertion
+One insertion
+Tolerant pass if budget permits; strict fail
+One aligned base differs
+One substitution
+One substitution
+Tolerant pass if permitted; strict fail
+Extractor is a short internal fragment of a much longer gold
+Missing gold bases charged
+Missing gold bases charged
+No free partial-gold pass
+8.7 Required alignment trace shape
+A trace must be rich enough to render both strings position by position without realignment. Suggested fields include aligned_gold, aligned_extractor, operations (one of MATCH, SUBSTITUTION, INSERTION, DELETION, FREE_EXTRACTOR_FLANK), gold_start/end, extractor_start/end, left_flank/right_flank, edit_distance, multiple_optimal_placements, orientation_forward, algorithm_version. Include missing-base direction explicitly: gold base versus extractor gap means extractor deletion, while extractor base versus gold gap means extractor insertion. Yellow highlights either indel, with a tooltip explaining direction. The scoring function must validate that total edit operations equal d.
+9. Strict locking, name evidence and candidate-graph construction
+9.1 Ordered matching pipeline and each stage’s hand-off
+Stage S0 — Preflight. Receive valid linked paper context with significant scoreable golds, parseable extractor candidates, IDs, duplicate groups and gold-similarity warnings. Does: compute scope and diagnostics. Does not: mark any TP, make fuzzy paper links or drop the hard cases. Handoff: a PaperContext with all unassigned nodes.
+Stage S1 — Strict whole-string anchors. Compare normalized forward strings for exact equality. Lock a candidate only if the gold and extractor are uniquely paired under the defined raw/duplicate multiplicity rule and there is no material unresolved identity contradiction. Mark both as MATCHED_STRICT, store reason UNIQUE_STRICT_WHOLE, and remove these item IDs from subsequent assignment. Does not: tolerate edits, guess a name, resolve identical-gold collisions by row order or silently consume one extractor claimed by several strict-identical golds. Handoff: immutable strict anchors plus remaining gold and extractor IDs. If a material name conflict is discovered later, preserve the strict sequence evidence but reopen review status; never hide the conflict simply to keep metrics high.
+Stage S2 — Name evidence. For each remaining gold/extractor pair with a credible sequence-local exact name agreement, call the same alignment engine on that pair (a restricted, early mini-pass). Record name match, source, strict/core distance and any contradiction. Does: prioritize or corroborate a candidate and expose a probable wrong-name extraction. Does not: lock on name alone or convert an out-of-budget nucleotide sequence to TP. Handoff: updated evidence annotations on still-unassigned nodes. Paper-level name arrays are not attached by item index.
+Stage S3 — Exhaustive sequence comparisons. For every remaining significant gold compare against every remaining unique extractor item within that paper. Compute canonical full-gold semi-global edit distance and trace, tolerance, completion, overhangs, sequence lengths and alternative placements. Does: build all eligible edges and retain weak/failed comparisons as diagnostics. Does not: assign while looping, omit the runner-up, compare across papers or drop candidate edges just because they do not rank first. Handoff: complete per-paper candidate graph.
+Stage S4 — Context and competition. Attach gold-near-duplicate flags, candidate overlaps, sequence-local name support/conflict, shared primer/low-complexity warnings, exact core flags and contested connected components. Does: determine which pairs are viable for automatic assignment and which require stronger evidence. Does not: create a new arbitrary confidence percentage. Handoff: annotated graph with possible dummy/unmatched alternatives.
+Stage S5 — Global assignment. Solve compatible one-to-one associations for the entire remaining paper, preserving available unmatched nodes. Does: use all viable edges and the agreed evidence hierarchy to choose globally coherent candidate links. Does not: require E >= G to imply all golds matched, permit an extractor ID to be reused, or make row order a biological tie-breaker. Handoff: tentative assignments plus the unresolved contested components.
+Stage S6 — Conditional global tie-break and runner-ups. Only when two or more viable semi-global candidates compete, compare full-string global edit distances/completion for the affected pairs. Evaluate their effect on the whole connected component, not just a local pair. If the distinct global preference is coherent and there is no material conflict, it can resolve the tie. Where still ambiguous, examine the affected candidates’ runner-ups using the already computed candidate graph. Does not: globally penalize every core match or keep rescoring forever. Handoff: stable preferred assignments or explicit unresolved reason codes.
+Stage S7 — Final automatic acceptance gate. Verify unique IDs, evidence provenance, required tolerance for auto-links, absence of unresolved name contradictions, gold-duplicate ambiguity and unresolved equivalent graph solutions. Accept defensible pairs; otherwise mark relevant records MANUAL_REVIEW or UNMATCHED. Does not: force an answer or classify a failed nucleotide value as correct. Handoff: immutable AutomaticPaperResult plus a reproducible decision audit.
+Stage S8 — Sequence scoring. After associations are fixed, compute four display correctness criteria and both population views. Does: derive metrics from G, E, accepted M and passing T. Does not: select new associations, delete unmatched predictions or turn review into TP. Handoff: dashboard data and exporters.
+9.2 All-pairs means all pairs, even with strict locks elsewhere
+For the subset of nodes remaining after unique strict anchors, construct all G_remaining × E_remaining comparisons; each candidate has a stable ID. It is acceptable to reuse cached edit distances for identical canonical strings, but the identity evidence belongs to the individual source item. The paper’s event log should still show strict-anchor provenance and any candidate rivals that were effectively preempted by a strict lock, so the reviewer can explain why a remaining gold’s candidate was unavailable.
+9.3 What name evidence can and cannot do
+An extractor stating that a particular sequence item is named DUX4, when gold DUX4 exists in the same paper, is a powerful hypothesis. The name-supported pair gets an early exact/semi-global comparison and a NAME_EXACT_SEQUENCE_LOCAL reason. If its nucleotides are within tolerance, it can improve the candidate’s support. If the same extractor’s nucleotide string is an exact whole match for a different gold called APT7, the system must preserve the contradiction (NAME_SEQUENCE_CONFLICT) rather than silently ‘fix’ the extractor’s claimed name. Name evidence can be mistaken; it is neither infallible ground truth nor irrelevant. A material contradiction sends the affected case to review if it prevents an unambiguous automatic interpretation.
+9.4 Exact core vs strict whole
+Exact fitted core (semi_global_d=0) provides excellent nucleotide correctness but does not have the same identity specificity as strict whole when multiple golds share central regions. It remains in the contextual graph. Only unique whole-string exact pairs are locked in S1. When an exact core fit is the only credible candidate and no conflicts exist, the engine may accept it in S7. When a full-length gold and core-only gold compete for the same longer extractor, global scope agreement can break the competition.
+10. Global assignment, conditional tie-breakers and runner-ups
+10.1 Represent the paper as a bipartite graph
+Left-side nodes are significant gold record IDs; right-side nodes are eligible unique extractor IDs (or explicit multiplicity-capacity nodes in a gold-duplicate exception). Each candidate edge has primary alignment evidence, tolerance status, name support, global scope evidence where needed, and warning flags. Insert dummy unmatched alternatives. A matching is legal only if each physical ID occurs at most once. A suitable exact solver is a Hungarian algorithm or equivalent maximum-weight bipartite assignment; the old rushed evaluator already used a form of Hungarian assignment, so this is a semantic upgrade, not the first use of graph optimization in AptaBench.
+10.2 Avoid a magic confidence score
+The decision objective should follow a documented priority ordering: unique strict whole anchors are already removed; surviving edges must satisfy basic viability; explicit reliable names and uniquely discriminative full-gold fits support identity; whole-paper uniqueness and conditional global scope can distinguish remaining competitors; an unresolved material contradiction is a stop signal. A lexicographic objective (evidence classes and deterministic comparisons) is preferable to an invented mix such as 0.4*name + 0.3*completion + 0.3*length. A solver’s numeric weight can encode lexicographic categories internally, but this must never be shown as a calibrated probability of identity.
+10.3 When global alignment runs
+Only activate global alignment as an association tie-breaker for contested viable semi-global candidates (or when calculating the independently displayed whole-string scoring criterion). Compare their whole-string edit distances under unit edit costs. A one-edit improvement is a real discrete difference, not mere floating noise, but it is not automatically sufficient to negate a material independent identity conflict. If the preferred assignment is globally compatible, uniquely best under documented evidence priorities, and not contradicted, accept. If global completion does not reliably distinguish, stop and manual review; do not introduce arbitrary 2%/5% margins or an unlimited search to rescue a hard match.
+10.4 Decisive 40-nt / 84-nt example
+Pair
+Semi-global
+Global
+Relevant evidence
+40-nt G1 ↔ 84-nt E1 containing G1
+d=0, 100%
+d=44, 0% clamped
+Perfect fitted core, weak whole-scope agreement
+40-nt G1 ↔ 40-nt E2 identical
+d=0, 100%
+d=0, 100%
+Perfect full-string agreement
+84-nt G2 ↔ 84-nt E1 identical
+d=0, 100%
+d=0, 100%
+Perfect full-string agreement
+84-nt G2 ↔ 40-nt E2 core fragment
+at least 44 errors, ~47.6% or lower
+at least 44 errors, ~47.6% or lower
+Missing most gold; outside tolerance
+Correct whole-paper resolution: G1→E2, G2→E1. Do not let a greedy G1→E1 exact-core match steal E1 before G2 is considered. Counterfactual: if E2 is absent, G1→E1 is still a legitimate exact-core candidate (its poor global completion alone cannot veto it). If G2→E1 also competes, the paper-wide solver favors its more specific exact-whole association and leaves G1 unmatched/review as warranted. A one-to-one assignment cannot count E1 twice.
+10.5 Runner-ups, counterfactuals and the stopping rule
+The historical first-best-versus-second-best greedy pass is removed: every candidate comparison is already in the graph. For a contested component, however, the engine should inspect the runner-up for a gold and the runner-up gold for a claimed extractor. It may solve the affected component with a proposed edge forbidden to test whether an equivalent alternative exists. This is a bounded stability diagnostic, not a perpetual counterfactual rescue cascade. If the next-best complete assignment is equivalent under the frozen priority policy, if competing golds are indistinguishable, or if global alignment cannot make a reliable decision, mark MANUAL_REVIEW and stop. No mandatory numerical margin is introduced in v0.1.
+10.6 Outcomes when no viable unique association exists
+If all candidates are outside standard tolerance, retain them for manual inspection; do not automatically call one a TP because it is numerically the best available. If a reliable sequence-local name exists but nucleotide distance exceeds budget, mark identity hypothesis + OUTSIDE_TOLERANCE_REVIEW, not an automatic pass. If no extractors are present in an attempted paper, all eligible golds are unassigned and count unrecovered in closed-world scoring. If an extractor remains after all golds have unambiguous accepted associations, it remains UNVERIFIED_EXTRA; do not force its use.
+11. Decision state machine, reason codes and stopping conditions
+11.1 Keep association status separate from correctness
+Status
+Meaning
+May count as TP?
+PENDING
+Normalized candidate exists; no decision yet
+No
+MATCHED_STRICT
+Unique uncontested whole-forward exact association locked
+Yes, if selected criterion passes
+MATCHED_CONTEXTUAL
+Association accepted by whole-paper evidence and constraints
+Yes, if selected criterion passes
+MATCHED_HUMAN
+Association confirmed explicitly in review
+Yes, if selected criterion passes
+MANUAL_REVIEW
+Plausible but unresolved or contradictory association
+No, pending review
+UNMATCHED_GOLD
+No accepted association to significant gold
+No
+MARKED_MISSING_HUMAN
+Reviewed as missing an extracted counterpart
+No
+UNVERIFIED_EXTRA
+Extractor item has no accepted significant-gold link
+No under closed-world
+DUPLICATE_SUPPRESSED
+Exact redundant unique-sequence item suppressed
+Not a separate default scored prediction
+INVALID_SEQUENCE
+Unsupported/missing sequence; diagnostic
+No; denominator policy explicit
+EXCLUDED_NONSIGNIFICANT
+Gold outside frozen benchmark scope
+Never included
+UNATTEMPTED_PAPER
+Not in this extractor batch
+Not in attempted-run metrics
+A pair’s correctness is a separate indexed result: strict_whole_pass, strict_core_pass, adaptive_whole_pass, adaptive_core_pass, global_distance, semi_global_distance, B(L). One association can pass tolerant-core but fail strict-whole; one human-confirmed association can fail every criterion. Automatic-association confidence and value correctness are not synonyms.
+11.2 Stop conditions and manual-review triggers
+Stop automatic matching for affected nodes and raise review when (a) two best whole-paper assignments remain equivalent, (b) global completion cannot reliably break a contested candidate tie, (c) short/repeated cores are non-discriminative, (d) gold or extractor identity multiplicity remains unresolved, (e) a material sequence-associated name contradicts the proposed link, (f) all potential associations are outside standard tolerance, (g) source syntax/paper link is ambiguous, or (h) a candidate would require reuse of an extractor ID. Do not spend unlimited computation trying to eliminate the last review item.
+A gold can be unassigned without ever having a plausible candidate, and an unassigned gold can be pending reviewer adjudication. Store review_reason so these cases remain distinguishable. A paper with all significant golds resolved and no material contradictions does not require mandatory review even if extra extractor items remain. ‘Review complete’ means all significant golds are either resolved matched or explicitly reviewed as missing, not necessarily all correctly recovered.
+11.3 Example machine-readable reason codes
+UNIQUE_STRICT_WHOLE, EXACT_FITTED_CORE, NAME_EXACT_SEQUENCE_LOCAL, NAME_PAPER_LEVEL_ONLY, NAME_SEQUENCE_CONFLICT, PAPER_LINK_AMBIGUOUS, PAPER_UNATTEMPTED, CANONICAL_DUPLICATE, GOLD_IDENTICAL_CONFLICT, GOLD_NEAR_DUPLICATE, NONDISCRIMINATIVE_SHORT_CORE, MULTIPLE_EQUAL_FITS, CONTESTED_EXTRACTOR, GLOBAL_TIEBREAK_PREFERRED, GLOBAL_TIEBREAK_INCONCLUSIVE, EQUIVALENT_GLOBAL_ASSIGNMENT, OUTSIDE_TOLERANCE_REVIEW, NO_EXTRACTOR_CANDIDATE, INVALID_CHEMICAL_SEQUENCE, MANUAL_CONFIRMED_ASSOCIATION, MANUAL_REJECTED_PAIR, MANUAL_MARKED_MISSING, MANUAL_REASSIGNED, MANUAL_UNDO.
+Reason codes must be stable and documented; prose explanations may evolve. Multiple reason codes per record are allowed. The engine should never overwrite a diagnostic code to make a result appear cleaner.
+12. Sequence scoring definitions and metric populations
+12.1 Scoring happens after association, never during a display toggle
+A finished automatic run produces a canonical set A_auto of accepted one-to-one associations plus unresolved nodes. Human review may produce an effective set A_effective by applying valid events. The scorer receives one selected result population (automatic-only or effective adjudicated, clearly marked in the report) and does not run assignment. It computes the chosen criterion for each accepted association using previously stored distance/trace data. No criterion is allowed to cherry-pick the alternate extractor candidate that would improve its own F1.
+The default PI dashboard uses the effective/current associations and labels them Automatic only or After human review as appropriate. Full audit must retain the pristine automatic metrics separately. Any correction to the reference gold base string is an explicit new reference-version evaluation, not a hidden manual score edit.
+12.2 Three simple, independent dashboard choices
+Main choice
+Option A
+Option B
+Changes matching?
+Evaluation population
+All sequences (closed-world)
+Matched only (conditional)
+No
+Error allowance
+Strict (d=0)
+Adaptive tolerant (d<=B(L))
+No
+Compared nucleotide scope
+Whole string (global)
+Core only (full-gold semi-global)
+No
+The choice Matched only + Adaptive tolerant + Core only should be immediately understandable and may be the most useful conditional correctness view. All sequences + Adaptive tolerant + Core only is a useful conservative reference-recovery perspective. Initial display may default to the latter; there is no fourth main switch for double tolerance, assignment stability, Jaccard or individual error types.
+Important naming: Core only means the entire gold sequence is used with free extractor terminal flanks; it does not mean choosing only a central substring of the gold or throwing away gold terminal bases.
+12.3 Four value pass flags per accepted pair
+For an accepted (g,e) association let d_semiglobal be the full-gold fitting distance and d_global the whole-string Levenshtein distance. Let L be the gold canonical length. Compute and store all four booleans at evaluation time:
+Scope
+Strict
+Adaptive tolerant
+Whole string
+strict_whole = (d_global==0)
+tolerant_whole = (d_global<=B(L))
+Core only
+strict_core = (d_semiglobal==0)
+tolerant_core = (d_semiglobal<=B(L))
+For each, display d, B(L) (for tolerant), completion percent, and the exact alignment trace in the detailed record. Extended/double tolerance d <= 2B(L) can be retained as an experimental diagnostic in JSON/technical export but must not become an implicit matching pass or a visible PI-facing toggle.
+12.4 Score-count definitions
+Within the declared attempted-and-linked significant-only scoreable population define:
+G: count of scoreable significant gold records in attempted papers.
+E: count of unique scoreable extractor prediction items after the frozen strict deduplication policy and documented multiplicity exceptions.
+M: count of accepted one-to-one gold–extractor associations, automatic plus applicable confirmed human associations.
+T: count of the M accepted associations whose value passes the currently selected strict/tolerant × whole/core criterion.
+R: count of gold records still pending manual review; U: count of unmatched unique extractor predictions. These are reported as operational statuses, not added a second time to E or G.
+Every accepted association uses one gold and one extractor ID, so 0 <= T <= M <= min(G,E) under ordinary distinct-item scoring. Multiplicity exceptions must still trace to source IDs and preserve these inequalities with the properly defined E.
+12.5 All sequences / closed-world significant-reference metrics
+When All sequences is selected, every scored extractor prediction not contributing a successful accepted recovery is counted provisionally as a false positive relative to the significant gold set. Every significant gold not successfully recovered is counted as FN. This intentionally penalizes extra outputs and manual-review non-successes; it does not prove that every extra aptamer sequence is biologically wrong. The user must see this exact caveat once in the UI.
+All-sequences counts: TP = T; FP = E - T; FN = G - T.
+All-sequences metrics: Precision = T / E; Recall = T / G; F1 = 2*T / (E + G).
+Use N/A when a denominator is zero rather than declaring success. For example, no attempted predictions and G>0 gives recall 0, undefined precision, and F1 0 under the explicit zero-TP convention, with a note that precision is undefined. No attempted papers should produce no applicable run metrics, not a synthetic 100%. Unlinked papers and unscoreable reference rows are listed separately until the scope is resolved.
+An accepted association whose sequence fails the displayed criterion contributes one FP for its extractor and one FN for its gold. This is deliberate: the incorrect prediction exists, and the correct significant reference has not been recovered. It does not add a second FP/FN just because the pair also has a review row.
+12.6 Matched-only conditional correctness
+When Matched only is selected, evaluate only the M accepted associations. Each association is a paired trial: T pass, M-T fail. Display Matched-pair accuracy/correctness = T/M, with T of M accepted pairs pass. If the UI also exports matched-only precision, recall and F1 under symmetric paired counting, all three are T/M because the compared gold and extractor populations have equal size M. They are not independent estimates of total extractor precision. A clearer dashboard emphasizes Matched-pair correctness, not three redundant KPIs.
+Matched-only paired metrics: Precision = Recall = F1 = T / M when M > 0.
+If M=0, show N/A and a clear 0 accepted pairs label; never display a fabricated 100%. Beside matched-pair correctness, show significant-gold recovery T/G and the raw accepted-pair count so a conservative evaluator cannot improve its headline by flagging all difficult golds for review. For an accepted pair outside tolerance, matched-only correctness fails under that criterion even if the association was manually confirmed.
+12.7 All-sequences caveat text: frozen UI wording
+All sequences (closed-world): This score checks every unique extractor prediction against the significant gold reference only. Extractors can report more sequences than the significant gold set contains, including legitimate sequences outside this reference. Those additional predictions lower closed-world precision and F1 by design; they are not independently verified biological false positives. Unresolved manual-review candidates count as unconfirmed recoveries until adjudicated.
+This message should appear once near the controls when All sequences is selected and be included in the exported methodology/run metadata. Do not substitute the inaccurate blanket claim that scores are ‘always terrible’; they can be low when many extra predictions exist, but their value depends on the actual counts.
+12.8 Manual review and provisional FP/FN
+A pending gold is already included in G-T; a pending extractor is included in E-T. Label these contributions provisional closed-world non-successes. They are not separately counted on top of the formulas. After a reviewer confirms a correspondence, the pair becomes part of M; it increases T only when its actual aligned value passes the selected criterion. A reviewer-confirmed incorrect pair increases matched-only denominator M but not T. Rejecting a candidate or marking gold missing does not manufacture a TP. An explicit reviewer decision may change which extractor is linked to which gold, but must always maintain one-to-one IDs.
+12.9 Worked example: five golds and eight predictions
+Assume G=5 significant scoreable golds, E=8 unique predictions, M=4 accepted associations, and all four accepted pairs pass Adaptive tolerant + Core (T=4). Then All sequences: TP=4, FP=8-4=4, FN=5-4=1, precision 50%, recall 80%, F1 8/(8+5)=61.54%. Matched only: 4/4 = 100% conditional matched-pair correctness; significant-gold recovery is 4/5 = 80%. The fifth gold remains unrecovered; four predictions lack accepted successful links. Do not randomly remove three unmatched predictions to force E=G; that would artificially inflate precision from 50% to 80% and collapse precision/recall into a count-balance artifact.
+Now suppose only three of those four accepted associations pass Strict whole (T=3), without changing a single association. All-sequences precision 37.5%, recall 60%, F1 6/13=46.15%; matched-pair correctness 3/4 = 75%; significant-gold recovery 3/5 = 60%. The differing scores reflect the selected nucleotide criterion, not different matching outcomes.
+12.10 Worked example: manual review pending
+For G=5, E=8, and only T=3 accepted passing pairs, with two golds and several extractors pending review: all-sequences TP=3, FP=5, FN=2, precision 37.5%, recall 60%, F1 46.15%. These are provisional because suspected associations are unresolved. If one pending gold/extractor pair is human-confirmed and passes the selected threshold, T becomes 4, FP becomes 4, FN becomes 1, and F1 becomes 61.54%. If the person confirms the association but its bases fail tolerance, M increases while T does not; closed-world F1 stays 46.15%, and matched-only correctness declines because a known incorrect extraction is now included.
+12.11 Suggested reporting metadata
+Every metric payload must include population_label, n_gold_scoreable, n_extractor_unique, n_accepted_pairs, n_passing_pairs, n_pending_gold, n_unverified_extractor, strict_or_tolerant, whole_or_core, review_mode (automatic/effective), exact numerator/denominator, and explanatory notes. A percentage without its evaluated population is an incomplete benchmark result. Disclose the distinct count of unscoreable significant gold records and unattempted gold papers adjacent to the summary when nonzero.
+13. Manual review and post-review metrics
+13.1 Pending association is not incorrect sequence
+The engine flags MANUAL_REVIEW whenever it cannot defensibly identify a counterpart, when rival assignments remain equivalent, or when the source/identity evidence is contradictory. This is an association uncertainty, not a claim that the extracted nucleotides are wrong. It may contain an exact 100% core fit that is still ambiguous between golds. Consequently it contributes no TP until resolved but retains candidate matches, edit distances and sources for inspection.
+A different case is confirmed identity but questionable nucleotides. This must remain in Matched only and be marked correct/incorrect according to the selected value criterion. Otherwise matched-only results would look artificially perfect by excluding all known wrong sequences.
+13.2 Before, during and after review
+Association state
+All sequences
+Matched only
+UI behavior
+Automatic accepted, value passes
+One TP
+Passing pair
+Visible, optional read-only inspection
+Automatic accepted, value fails selected criterion
+One FP + one FN
+Incorrect accepted pair
+Visible with colored errors
+Gold pending review
+Provisional FN via G-T
+Excluded until identity established
+Review needed
+Extractor pending/unassigned
+Provisional FP via E-T
+Excluded
+Available in right-hand panel
+Human confirms association, value passes
+TP after overlay
+Passing pair
+Link saved, metric recomputed
+Human confirms association, value fails
+FP + FN remain
+Incorrect pair
+Link saved, error remains red/yellow
+Human rejects selected candidate
+Remains non-success unless other link
+Not a matched pair
+Alternative edges remain available
+Human marks gold missing
+FN remains
+Excluded from matched-pair population
+Gold resolved as reviewed missing
+Human leaves unresolved
+Provisional FN/FP remains
+Excluded
+Paper stays review pending
+
+Figure 2. Human review changes the identity overlay; it cannot change the stored nucleotide comparison.
+13.3 Automatic versus reviewed results
+AptaBench Lite must be able to report automatic-only and human-adjudicated/effective results separately. The default current dashboard can show the effective result once review events exist, provided it visibly states After review. Do not quietly overwrite the algorithm’s original performance or train against reviewer outcomes in the same run. An exported audit must show both current and original association for any corrected case. Undo should append a compensating event or restore a prior event version while retaining history, never erase evidence that a correction occurred.
+14. Paper-level reviewer workspace and exact actions
+14.1 Entry rule, status and layout
+Every attempted paper has a sequence result row/card with G resolved / G scoreable, unique extractor count, number pending, optional conflict warning and a small progress graphic. The action Resolve manual review (N) appears near the paper results if at least one significant gold is unresolved or a material identity conflict survives. If all significant golds are resolved and no unresolved material contradiction exists, display Evaluation complete and do not force the PI through review merely because extra extractor predictions exist. A user may always open an automatically accepted result in read-only inspection mode and deliberately enter correction mode.
+
+Figure 3. Intended per-paper review workspace, showing all golds, all unique extractor items, a selected pair and primary actions.
+The reviewer screen keeps all significant golds on the left, all unique extractor items on the right, and an expanded selected-pair comparison below. Gold entries include ID, curated name, length, accepted association (if any), reason and status; extractor entries include original/source ID, extracted local name if reliable, length, availability, current owner gold and duplicate badge. Both panels are selectable regardless of the algorithm’s ranking. The default selection for an unresolved gold is the best suggested available candidate, but the human can click any pair, including a currently assigned extractor (with explicit reassignment safeguards).
+14.2 Pair preview: minimum fields
+The comparison panel shows paper ID and filenames; selected gold/extractor IDs; curated and extracted names with provenance; raw and canonical strings; sequence lengths; strict whole equality; d_semiglobal, d_global where available, B(L), exact/tolerant pass flags; fitted start/end and 5’/3’ overhang lengths; alignment error counts (match/substitution/insertion/deletion); competing candidate ranks on both sides; name agreement/conflict; current assignment ownership; reason codes; and source worksheet/cell/list index. Keep advanced solver metadata in a collapsible Why this match? area, not in the primary score header.
+14.3 Nucleotide highlighting: one universal color contract
+Color
+Exact alignment operation
+Display behavior
+Green
+Identical nucleotide aligned to identical nucleotide (MATCH)
+Green background/text in both aligned rows
+Yellow
+Insertion or deletion (INSERTION / DELETION)
+Show a visible gap – in the affected row, yellow in both positions and an indel count
+Red
+Substitution (SUBSTITUTION)
+Distinct aligned bases shown red; not labeled indel
+Gray
+Extractor-only terminal bases outside semi-global fitted interval
+Show free flank separately; never color as scoring mismatch under Core
+Neutral
+Invalid/unparsed source syntax, unaligned annotations
+Preserve raw text, tooltip and warning; do not pretend alignment is valid
+Use monospaced typography, explicit aligned columns, a color legend and textual status/icons for accessibility. A gold nucleotide absent from the extractor is a yellow gap in the extractor row; an extra extractor nucleotide inside the fit is a yellow gap in the gold row. Keep 5’→3’ direction visible and label any diagnostic reversed orientation separately. Long strings should wrap at consistent aligned columns or scroll together, never wrap each row differently.
+The stored trace drives both UI and Excel; it is forbidden to recalculate a different optimal alignment for coloring, because different equally optimal traces could move gap positions or misleadingly change visible error locations.
+14.4 Exact action semantics
+Confirm association. User selects gold G and extractor E, clicks Confirm, and receives a preview with alignment and any warnings. Engine validates paper, item existence, uniqueness and duplicate constraints. If E is unassigned and G has no conflicting accepted link, append CONFIRM_ASSOCIATION(G,E) to review events; set effective MATCHED_HUMAN; calculate all four value pass flags using stored trace. The user cannot click TP; confirmation is identity only. If d > B(L) show a warning and still allow confirmation because the extractor can have wrong bases while its identity is known.
+Reject candidate. Append REJECT_PAIR(G,E). Rejects only that edge, not the entire gold or extractor. The gold remains pending if unresolved; other candidates stay available. Do not infer a false negative solely from rejection of one proposed pair.
+Mark gold missing. Reviewer explicitly states that no acceptable extracted counterpart for that significant gold exists in the selected batch. Append MARK_GOLD_MISSING(G) with optional note; effective status becomes MARKED_MISSING_HUMAN. The gold remains unrecovered/FN under closed-world metrics. This action must be reversible, and the UI should warn when unreviewed plausible candidates remain.
+Leave unresolved. No new association; optionally append a reviewer note. Candidate remains MANUAL_REVIEW and paper retains pending status. No TP created; all-sequences counts remain conservative.
+Reassign. If selected E is already linked to another gold G_old or selected G is already linked to E_old, show a conflict dialog listing the current assignment, proposed assignment, affected golds/extractors and metric consequences. Require explicit confirmation and a reason; append one atomic REASSIGN event that frees old endpoints and establishes the new pair. Never silently override a unique strict lock or a human-approved pair. Both affected statuses and metric aggregates must update together or not at all.
+Undo. Undo should target a specific review action/revision, validate that the current state is compatible, and append a compensating UNDO event or an immutable superseding revision. The prior human decision remains in the audit trail. Never delete the original automatic result.
+14.5 Availability and conflict policy
+An extractor ID cannot be assigned to two golds. The right panel visibly labels Available, Suggested, Assigned to G#, Duplicate-suppressed or Invalid; assigned items remain viewable but selecting them for a new association invokes the explicit reassignment flow. A gold that has been marked missing cannot silently acquire an extractor; the reviewer must undo the missing decision or use a deliberate conflicting-state correction. Rejecting a pair must not automatically free an unrelated accepted match.
+14.6 Post-action computation
+After a review event, do not rerun the complete extractor parse or all pairwise DP alignments. Replay/commit the review transaction against the cached AutomaticRun, enforce one-to-one constraints, recalculate affected effective associations, rerender relevant candidate availability and recompute score aggregations from fixed alignment evidence. Suggested candidate ordering may refresh using existing graph data; it must not silently rematch previously accepted records. A new input file, schema mapping, canonicalization policy or matching policy version intentionally creates a new run and invalidates the relevant cache.
+14.7 When the paper is considered finished
+A paper is REVIEW_COMPLETE when every scoreable significant gold has an effective accepted association or an explicit reviewed-missing outcome, with no unresolved material identity contradiction. The paper can be complete with zero TP if every gold was reviewed missing or every linked sequence is incorrect. A paper with all golds matched but unresolved name/identity conflicts should remain flagged for inspection. An extractor-only extra does not by itself keep the paper in manual review; it stays in closed-world scoring.
+14.8 Persistence and shared-team review
+The app must save reviewer events in a durable, importable form. Local-only single-user MVP: an append-only review-state JSON file with atomic writes, checksum and explicit Save/Download/Import workflow; preferably autosave per committed event. Streamlit session state alone is not durable storage: browser reloads can reset it. If the app later becomes shared by multiple researchers, use authenticated users, per-run persistence (e.g., SQLite/PostgreSQL), optimistic version checks and transaction/locking to prevent simultaneous edits to the same paper from overwriting each other. Reviewer initials alone are insufficient for attribution on a publicly reachable multiuser server.
+15. Dashboard information architecture and user experience
+15.1 Four primary user screens
+A. Upload & Configure. Upload extractor XLSX; select approved gold XLSX or upload custom reference; choose relevant sheets; map gold paper ID, source name, record ID, significant-status and sequence columns; map extractor paper key, sequence value and optional item-level name/context columns. Show data preview, validation errors and selected attempted-paper scope. Provide one Run evaluation action. Keep rarely used normalization/scientific options behind an Advanced expander, with immutable versioned defaults.
+B. Overview. Show run banner (input names/versions, attempted papers, significant golds, accepted matches, pending review), the three simple scoring choices, compact KPI values and a per-paper results table sortable by pending count or recovery. All-sequences mode shows precision/recall/F1 with the caveat; Matched only shows Matched-pair correctness plus significant-gold recovery/denominator, not three redundant F1/P/R values. The app can display raw TP/FP/FN beneath KPIs and small n/N denominators without new toggles.
+C. Paper Detail / Sequence. One row per scoreable significant gold; show accepted extractor or unresolved status, sequence names, lengths, matching stage, edit distance, tolerance, raw/normalized reference, score flags and aligned-color preview. Allow sorting/filtering by status, but no separate Review Queue tab. The review action lives in the paper sequence detail itself. A read-only alignment inspector is available for automatic matches.
+D. Manual Review & Export. Within a paper, the side-by-side gold/extractor workspace supports exact actions in §14. The Export area offers current effective Excel, machine-readable JSON/audit and optional reviewer-state backup. Exports disclose automatic vs reviewed metrics and selected scoring criteria; no second evaluator is invoked.
+15.2 Main screen interaction contract
+Only three primary controls—All sequences/Matched only; Strict/Adaptive tolerant; Whole string/Core only—govern displayed sequence scoring. Switching one control must return instant results from precomputed per-pair distances and fixed IDs. Keep manual_review count, G, E, M, T and run mode visible enough that the PI understands what population is assessed. A record can display a green core alignment while retaining a yellow identity pending status; color is nucleotide evidence, not a promise of correct identity.
+15.3 Paper cards and navigation
+The Overview should list every attempted linked paper, with paper_id, paper name, significant gold count, accepted count, unrecovered count, pending review count, and closed-world or matched-only result under the currently selected criterion. Clicking a paper opens its Sequence detail; selecting a sequence reveals alignment and provenance. The Resolve manual review (N) action appears at the bottom of paper detail if needed. For an all-resolved paper the action is replaced by Evaluation complete, while optional Inspect/Correct remains accessible without making mandatory work.
+15.4 App behavior on error, zero records and invalid inputs
+A malformed source file should produce a specific error near its mapping/row preview; it should not crash to a blank page or return 100% metrics. If the extractor has zero valid sequences for a legitimately attempted paper, show significant gold count, zero accepted pairs, expected FNs, and an Extractor empty note. If all paper keys are unlinked, stop the benchmark summary and request linkage correction. If the significant gold set is empty, show No scoreable significant gold sequences rather than undefined 0/0 as 100%.
+15.5 Accessibility and PI friendliness
+Use descriptive labels rather than internal function names (Core matching, not semi_global_DP_v3). Keep scientific caveats one paragraph long, reveal reason codes only on demand, and never use color alone to convey correctness; show numeric edit counts and gap symbols. Preserve keyboard navigation as Streamlit allows, clear focus in review actions, adequate contrast, and a readable monospaced font for nucleotides. Protect scientific accuracy in a novice-friendly dashboard instead of hiding important denominators.
+16. Excel, JSON and audit export contracts
+16.1 One canonical result, three views
+The backend returns a typed EvaluationRun with raw/canonical records, candidate graph, assignments, score flags, automatic and effective states, review log and provenance. Streamlit renders it. Excel exporter formats it. JSON exporter serializes it. Neither exporter runs a new alignment or assigns a new gold/extractor pair. The Excel results must reconcile exactly with dashboard counts under the same population/mode.
+16.2 Minimum Excel workbook
+Sheet
+Contents
+Editing expectations
+Overview
+Run banner; selected scoring mode; all-sequences or matched-only KPI counts/metrics; per-paper summary; significant-only caveat
+Output, non-editable statistical authority
+Sequence
+One row per significant scoreable gold, accepted extractor ID or review status, raw/canonical values, names, d_global, d_semiglobal, allowed errors, four pass flags, colored alignment, review reason
+Can be reviewed visually; app is primary decision-entry system
+Review History
+Reviewer events, previous/new link, note, reviewer, version, event timestamp, replay outcome; automated vs human distinction
+Audit output
+Run Info
+Source workbook SHA-256, file names, sheet/column mapping, attempted-paper list, algorithm/settings versions, normalization contract, duplicate convention, population definitions, package/runtime versions
+Provenance and reproducibility
+When pool/Kd modules are later specified and enabled, they can add Pool and Kd field sheets; do not postpone complete sequence functionality until those modules are ready. A detailed all-candidate comparison dump can be JSON/optional technical sheet rather than burdening the PI-facing workbook with thousands of rows.
+16.3 Excel alignment formatting
+Within Sequence, export both gold-aligned and extractor-aligned strings using rich text or a reliably styled column-by-column/row-by-row alignment representation. Apply green exact-base segments, yellow insertion/deletion positions (including a gap glyph), red substituted bases, and gray free extractor flanks. The two aligned rows must preserve positional correspondence when opened in Excel. With long sequences, consider a separate Alignment Detail sheet or stable fixed-width rich-text cell and a hyperlink to it, so the main sequence table remains narrow and readable. Use the stored alignment trace; do not recalculate display-specific alignments. Save a plain unstyled text trace in JSON for downstream scripts.
+16.4 Suggested machine-readable run payload
+{  "run_id": "2026-11-13T00:00:00Z_example",  "schema_version": "lite-1",  "match_policy": "lite-seq-v1",  "scope": "significant_only",  "input_fingerprints": {    "gold_sha256": "<hex sha256>",    "extractor_sha256": "<hex sha256>"  },  "mappings": {    "gold_sheet": "Sheet1",    "gold_columns": {"paper_id":"paper_id","record_id":"record_id","sequence":"gold_sequence","status":"sequence_status"},    "extractor_sheet": "aptamer_seq",    "extractor_columns": {"paper_key":"pk","value":"value","name_source":"notes"}  },  "settings": {    "standardization_policy": "conservative-forward-v1",    "duplicate_policy": "same-paper-exact-canonical",    "budget_policy": "max(1,min(4,floor(sqrt(L)/3)))",    "manual_review_policy": "abstain-on-unresolved-identity"  },  "automatic_result": "<all papers and assignments>",  "review_events": [],  "effective_result": "<computed by event replay>",  "metrics": "<derived from effective associations>"}
+The strings inside angle brackets in this example are placeholders, not values the program should emit. Actual JSON must use typed objects, real hashes, stable IDs, integer counts and validated scientific setting IDs. Keep the full candidate comparisons available in a companion audit JSON rather than duplicating very large sequences in every metric row.
+16.5 Example per-record alignment/decision object
+{  "paper_id": "AB003",  "gold_record_id": "AB003_R004",  "extractor_item_id": "aptamer_seq!F4[6]",  "gold_name": "APT-4",  "extractor_name": "APT-4",  "status": "MATCHED_HUMAN",  "association_origin": "review_confirmed",  "reason_codes": ["MANUAL_CONFIRMED_ASSOCIATION"],  "alignment": {    "orientation": "forward",    "gold_length": 40,    "extractor_length": 84,    "semi_global_distance": 1,    "global_distance": 45,    "allowed_errors": 2,    "fitted_extractor_start": 20,    "fitted_extractor_end": 60,    "operations": "<lossless list of aligned operations>"  },  "value_flags": {    "strict_whole": false,    "strict_core": false,    "tolerant_whole": false,    "tolerant_core": true  }}
+This example is illustrative, not a claim about real AB003 data. The sample operation list must be replaced by a real serialized trace; if the fitted span length differs from gold length because of insertions/deletions, the recorded coordinate fields must reflect the actual trace.
+16.6 Separate alignment cache from decision audit
+The alignment cache stores reusable exact DP results keyed by canonical strings, mode, orientation and algorithm version. The decision audit stores why this item ID, in this paper, was accepted/rejected, including competing graph edges, names, duplication, tiebreak activation and reviewer actions. Cache entries are not scientific evidence by themselves. A repeated string may share a distance cache entry while having a different item name, provenance or identity status.
+17. Application package, function boundaries and data models
+17.1 Standalone repository contract
+aptabench-lite/  app.py                         # Streamlit entrypoint; NO scientific algorithm  pyproject.toml                 # pinned/locked dependencies; Python version support  README.md                      # quickstart, data policy, meanings of metrics  .gitignore                     # .venv, __pycache__, caches, source workbooks, reports  config/    default_policy.toml          # scientific defaults and version identifier    example_column_mapping.json  src/aptabench_lite/    __init__.py    models.py                    # typed immutable entities, IDs, run/result schemas    readers.py                   # source adapters, sheet/column mapping, list parsing    papers.py                    # safe paper linking; attempted-paper declaration    normalization.py             # lossless sequence/name canonicalization    duplicates.py                # exact standardized duplicate groups    alignment.py                 # full-gold fitting and global edit-distance traces    gold_similarity.py           # gold near-duplicate diagnostic    names.py                     # sequence-local identity evidence and mini-alignment    candidates.py                # all remaining per-paper gold x extractor edges    resolver.py                  # strict anchors, graph solver, conditional tiebreaks    review.py                    # event validation, replay, reassign and undo    scoring.py                   # four value criteria + two populations, fixed links    result.py                    # EvaluationRun, reconciliation, result serialization    excel.py                     # Excel output from result, no new alignment    audit.py                     # JSON audit, reason codes, source hashes    engine.py                    # evaluate() orchestrator; UI-independent  tests/    test_normalization.py    test_alignment.py    test_duplicates.py    test_papers.py    test_matching.py    test_scoring.py    test_review.py    test_exports.py    test_cli_smoke.py    fixtures/                    # synthetic/minimal licensed test workbooks  scripts/    run_cli.py                   # optional noninteractive evaluation  docs/    science_policy.md    review_workflow.md
+This is a suggested modular decomposition, not an instruction to create a module per 20 lines of code. Functions can be grouped sensibly while maintaining single responsibility. Do not import aptabench.config, aptabench.gold_reader, aptabench.extractor_reader, sibling environment paths, or the monolithic rushed evaluator at runtime. Source copying from old code is permitted only with tests, provenance, and any applicable license/team approval.
+17.2 Typed model contract
+GoldRecord must have stable paper and record IDs, raw/canonical bases, curated label, significant status and source provenance. ExtractorItem must have stable paper/source ID, raw/canonical bases, original per-item notes, explicit sequence-local name evidence and duplicate group. CandidateEdge must contain both IDs, strict equality, fitting/global trace refs, gold budget, candidate eligibility, name evidence, warnings and any tie-break outcomes. PaperGraph contains every relevant candidate and original ID inventory. Association is one-to-one, contains origin and reasons, and does not contain a mutable hardcoded TP flag. EvaluationRun contains immutable automatic results plus external review overlay and derived metrics.
+Every model should be JSON-serializable through explicit schemas, not by serializing arbitrary Python object internals. Put a schema/version field on persisted artifacts and validate it on import. Use structured reason enums with a stable mapping to short UI text.
+17.3 Core pure-function API
+from aptabench_lite.engine import evaluaterun = evaluate(    gold_file=gold_bytes_or_path,    extractor_file=extractor_bytes_or_path,    config=validated_run_config,)# Returned run has paper records, candidates, automatic associations,# alignment traces, statuses, counts, scores, and provenance.# This function does not launch a UI, write Excel or invoke Codex.reviewed = apply_review_events(run, validated_events)metrics = compute_metrics(reviewed, population="all",                          tolerance="adaptive", sequence_scope="core")excel_bytes = export_workbook(reviewed, metrics)json_bytes = export_audit(reviewed)
+apply_review_events, compute_metrics, export_workbook and export_audit are separate functions. The same run can provide all four scoring combinations without rerunning evaluate. The function API must be usable in unit tests and a non-UI CLI; Streamlit is not the evaluation engine.
+17.4 Explicit matcher pseudo-code
+def evaluate_paper(paper, policy):    assert paper.paper_link_is_unambiguous    golds = paper.scoreable_significant_golds    extractors = paper.unique_canonical_extractor_items    gold_flags = compare_gold_to_gold(golds, policy)    strict_anchors, leftovers = lock_unique_exact_whole_pairs(        golds, extractors, gold_flags)    name_evidence = collect_sequence_local_name_evidence(leftovers)    name_evidence = compare_named_pairs_with_alignment(name_evidence)    edges = []    for gold in leftovers.golds:        for extractor in leftovers.extractors:            edges.append(compare_full_gold_to_extractor(                gold, extractor, policy))    graph = build_paper_graph(edges, gold_flags, name_evidence,                              allow_unmatched=True)    proposals = solve_one_to_one(graph, strict_anchors, policy)    conflicts = identify_competing_components(graph, proposals)    proposals = apply_conditional_global_tiebreaks(        proposals, conflicts, graph, policy)    proposals = bounded_runner_up_check_if_needed(proposals, graph)    decisions = validate_or_abstain(proposals, graph, policy)    return build_automatic_paper_result(        paper, strict_anchors, graph, decisions)
+This describes logical order, not a requirement to recompute the same distance multiple times. All calls must use a shared distance/trace provider. A reviewer confirmation does not call evaluate_paper again; it applies a validated overlay to its output.
+17.5 A run configuration must be reproducible
+The full config records source mapping, selected sheets and parser mode; significant-status allowed values; exact canonicalization policy; paper alias rules; attempted-paper declaration; duplicate suppression convention; error-budget version; eligible automatic-match policy; solver/tie-break version; and export display defaults. The three dashboard display toggles are not part of the association-policy hash. For each run, store Python/package versions and Git commit/tag when available. Changes to a scientific default require a new policy version and regression tests, not a silent refactor.
+18. Caching, performance, determinism and invalidation
+18.1 Why the old workflow felt slow
+Running Codex repeatedly to execute scripts, inspect independently generated outputs, and recalculate workbook metrics is a development-audit workflow—not how a scientist should operate a finished evaluator. In Lite, the app calls the Python engine directly, gets a typed result, and uses it for views/export. Routine runs do not invoke an LLM, API key, model inference, PDF parsing, network service or GPU. The workbooks already contain extracted sequences; this tool is a post-extraction evaluator.
+18.2 Compute only once per unique comparison
+Exact equality uses a direct canonical string comparison before dynamic programming. Use exact duplicate-grouping to avoid repeated identical DP work; each distinct (gold canonical, extractor canonical, algorithm mode, policy version) is computed once and cached. Name-mini-alignment uses the same provider that the exhaustive candidate graph uses; no duplicate independent implementation. Reuse the semi-global trace for candidate evidence and the manual-review alignment preview. Compute global distances when needed for whole-string score views or contested tie-breaks; cache them separately. Score toggles use d_global, d_semiglobal and budgets already available in result objects.
+18.3 Streamlit reruns are not evaluations
+Streamlit re-executes app code on interactions; therefore separate (a) a button-driven, explicitly committed Run evaluation that establishes an immutable run ID, (b) cached deterministic parsed/evaluated data, (c) ephemeral selected paper/gold/extractor screen state, and (d) durable review-event storage. Use st.cache_data for serializable derived data and/or a domain-specific persistent alignment cache keyed by validated inputs. Use st.session_state for screen selection and temporary UI state, never as the sole durable review history. Prevent rendering a new graph or erasing a reviewer decision on harmless filter change.
+18.4 Run hashes and invalidation matrix
+Change
+New matching run?
+Recompute alignment?
+Recompute metrics?
+Change All sequences ↔ Matched only
+No
+No
+Aggregate only
+Change Strict ↔ Adaptive
+No
+No
+Aggregate only
+Change Whole ↔ Core
+No
+No (if both distances stored)
+Aggregate only
+Select a different paper/candidate
+No
+No if already cached; one on-demand display comparison if truly absent
+No unless review changes
+Confirm/reject/reassign review
+No
+Usually no
+Yes, effective associations
+New extractor XLSX or gold XLSX
+Yes
+Only altered canonical pairs may reuse valid cache
+Yes
+Change workbook sheet/column mapping
+Yes
+As needed
+Yes
+Change standardization or budget/solver policy
+Yes / new policy hash
+Recompute affected comparison and decisions
+Yes
+New app code affecting scientific semantics
+Yes / version bump
+As needed
+Yes
+18.5 Determinism requirements
+Sorting input rows, shuffling extractor list order, or changing iteration order must not change evidence-based accepted correspondences. If two outputs are genuinely identical and unresolvable, produce recorded ambiguity rather than a random source-ID winner that changes biological conclusions. Use source IDs for stable ordering and reproducible file generation only after evidence-based ambiguity has been handled. Disabling caches must yield the same distances, status/reasons and metric counts.
+18.6 Performance acceptance, not guessed benchmarks
+Profile a frozen representative batch of approximately 49 papers and the expected per-paper significant-gold range. Record parsing time, normalization time, DP comparison count, graph assignment time, export time, memory usage and UI rerun latency. No upfront guarantee of a particular number of seconds should be written before measurements. Low-count per-paper graphs are unlikely to require a distributed execution framework; optimize actual bottlenecks first. Do not hide computational errors by silently skipping long sequences.
+19. Local installation, team access and hosted deployment
+19.1 Recommended first distribution: local browser application
+AptaBench Lite is a Python application with a browser interface. Running streamlit run app.py starts a Python server on the user’s computer; the browser displays its UI. The alignment and scoring are executed by Python on the server machine. No Codex account, AI token, internet connection for computation, dedicated graphics card or centralized database is required for the local single-user version once dependencies are installed. A localhost URL is not automatically accessible to other team members.
+For the first PI/team handoff, prefer the complete source repository plus a simple Windows launcher/README or a preconfigured internal workstation. The source must be cloned/installed on each member’s computer for independently running local sessions, unless the lab deliberately deploys one authenticated shared server. GitHub Desktop makes cloning and updating the repository easier, but does not itself install Python libraries or host a live Streamlit instance.
+19.2 System requirements and dependency classes
+A compatible desktop operating system: Windows, macOS or Linux; current mainstream web browser; Python 3.11/3.12 recommended as a stable baseline subject to pinned package compatibility testing. Streamlit’s published support range can evolve; the project’s tested range is the final authority.
+Python environment manager (venv) and package manager (pip); access to package downloads on initial installation unless dependencies are vendored under approved license.
+Core dependencies, pinned only after implementation/testing: streamlit, an Excel reader such as openpyxl or equivalent, a writer supporting rich-text colored output such as xlsxwriter/appropriate engine, pandas if needed for tables, an assignment solver (scipy or a tested pure-Python implementation), a validated typed-model library if selected, and pytest for development. numpy is optional unless chosen by the implementation. No LLM SDK or AptaBench V1.2 package.
+Writable location for optional review JSON snapshots/caches and exported workbooks. Browser-uploaded content can live temporarily in memory, but human review must be explicitly persisted.
+Network access only if deploying or installing packages; a local run with dependencies present can work offline on local XLSX files.
+19.3 Example Windows install and launch (PowerShell)
+git clone <approved-aptabench-lite-repository-url>cd aptabench-litepy -3.11 -m venv .venv.\.venv\Scripts\python.exe -m pip install --upgrade pip.\.venv\Scripts\python.exe -m pip install -e ..\.venv\Scripts\python.exe -m streamlit run app.py
+A browser tab should open at the local URL printed by Streamlit, commonly http://localhost:8501. If it does not, copy the local URL from the terminal into a browser. The terminal/server must remain running while the app is used; press Ctrl+C to stop. Using \.venv\Scripts\python.exe directly avoids PowerShell activation-policy problems. The Git URL above is a placeholder until the Lite repository is created.
+19.4 macOS/Linux install and launch
+git clone <approved-aptabench-lite-repository-url>cd aptabench-litepython3 -m venv .venv.venv/bin/python -m pip install --upgrade pip.venv/bin/python -m pip install -e ..venv/bin/python -m streamlit run app.py
+After starting the app, choose the authorized gold file, upload extractor workbook, inspect mapping, click Run, review flagged papers and download Excel/JSON. The generated output must be identical whether launched through terminal, an optional launch.bat helper, or a CLI wrapper using the same engine.
+19.5 Access options and what a URL actually means
+Mode
+Where code executes
+How users access
+Privacy/maintenance consequence
+Local workstation (recommended MVP)
+Researcher’s own PC
+localhost in that PC’s browser
+Workbook stays on that PC except for deliberate sharing; each user installs dependencies
+Lab internal server / LAN
+Lab-managed host
+Internal host/IP + port or internal DNS
+IT/network/firewall setup, authenticated access and backed-up review database needed
+Restricted VPN/intranet service
+Approved institutional host
+Private URL available after VPN/SSO
+Good for shared reviews if institutional policies allow; needs service ownership
+Private managed cloud deployment
+Hosted provider server
+Authenticated remote URL
+Workbook bytes are transmitted to remote host; permissions, retention and institutional approval required
+Public website
+Publicly reachable server
+Any visitor with public URL
+Not recommended for internal unpublished research workbooks and review history
+Do not claim that sharing the GitHub repository URL is equivalent to sharing a running application. A private code repo allows authorized collaborators to obtain the source; a running URL requires deployment. Do not expose the local Streamlit port to the internet merely to avoid installation. For an internal team URL, prefer lab IT-controlled hosting with access restrictions and HTTPS, especially if uploaded data are sensitive or unpublished.
+19.6 Streamlit Community Cloud: optional, conditional
+Streamlit Community Cloud can deploy an app from a GitHub repository and provide a fixed streamlit.app URL. Published documentation currently describes private app sharing by invited email and other deployment constraints; verify the plan, private-app allowance, GitHub permissions and data policy at deployment time. A private GitHub repo does not, by itself, settle every app visibility/data-handling question. It is a viable prototype/demo option only after the PI approves the upload of research workbooks to the provider. For a truly internal lab tool, an authenticated institution-managed server may be preferable. See official Streamlit deployment/sharing references in §25.
+19.7 Minimal team handoff contents
+Deliver a clean Git repository (no .venv, __pycache__, generated tests, private gold/source workbooks or giant report dumps committed by default), pinned dependencies, a short README, a launch helper if useful, one synthetic example workbook, one approved scientific-policy summary, an export specification, full regression tests and this master design document. The PI should need one launch action, two workbook selections and a clear Run button. Keep details of the original rushed evaluator out of the production user interface.
+20. Privacy, security, concurrency and recovery
+20.1 Uploaded research data and retention
+Local Streamlit still uses a Python server, but that server runs on the local computer; remote deployment sends uploaded workbook data to the remote server. Make this distinction explicit in the README and Privacy text. Never transmit sequences, names or papers to analytics/LLM APIs unless separately authorized. Avoid accidental logging of whole unpublished sequences or extracted XLSX cells to shared application logs. In hosted deployments, define the retention policy for uploaded bytes, temporary files, cached comparisons, exports and reviewer history; implement deletions consistent with lab requirements.
+20.2 Input-hardening and provenance
+Limit file types, upload size, extracted cell/list length and nesting depth. Treat everything from XLSX as untrusted input: no eval, no arbitrary code execution, no unsafe pickle imports, no HTML/JavaScript injection via notes, no arbitrary filesystem paths derived from filenames. On Excel export, defend against spreadsheet formula injection when a raw user-supplied value starts with characters that Excel may execute as formulas. Handle exceptions without exposing raw filesystem secrets, and preserve full original source text safely for audited reviewers.
+20.3 Review integrity
+Each review transaction must verify current run fingerprint, source IDs and current review revision. Cross-paper reassignments are prohibited. Duplicate extractor use is prohibited. Concurrent conflicting edits cannot both succeed: a multiuser host must use atomic transactions and optimistic lock/expected version checks, with a clear This paper changed—reload/reconcile message. Local file autosaves should use write-to-temp + fsync/atomic rename as appropriate and should keep recoverable backups. Reviewer action timestamps use timezone-aware ISO format and may record authenticated user ID; UTC for storage is recommended.
+20.4 Review import/replay safety
+An imported review-state JSON must match the gold/extractor input hashes, schema version, mapping and relevant algorithm policy. Reject or require explicit migration on mismatch; never blindly apply E6 from a different uploaded file. Applying replayed events should be deterministic and should return a clear report of invalid/conflicting events. A reviewer can export both a human-readable history and the machine-readable state that recreates effective metrics.
+21. Acceptance tests, adversarial fixtures and QA gates
+21.1 General testing philosophy
+Tests must exercise the standalone installed package and actual entrypoint, not only private helper methods. Use tiny synthetic papers with explicit expected candidate graph, selected associations, abstentions and metric counts. Compare the new engine against frozen authorized legacy results where their scientific policies agree; expect intentionally changed outputs where significant-only scope, minimum-one-edit tolerance or refined tie-break logic differs. Never copy old metric totals into tests as fabricated new truth.
+21.2 Required sequence and assignment test matrix
+Test ID
+Scenario
+Required outcome
+S01
+Unique exact whole gold/extractor
+Lock strict, forward, one-to-one; all four value flags pass
+S02
+Full gold core perfectly inside longer extractor
+Strict core pass, strict whole fail; no automatic flank error
+S03
+40/84 two-gold/two-extractor competition
+G-core→E-core, G-full→E-full, no greedy theft
+S04
+Only longer flanked extractor exists for core gold
+Semiglobal eligibility retained despite poor global completion
+S05
+One internal gold nucleotide missing in 8-mer
+One edit, budget one; tolerant candidate pass, strict fail
+S06
+One substitution in 8-mer
+One edit, tolerant candidate, automatic identity only if unambiguous
+S07
+One insertion in extractor
+Yellow gap in gold, edit distance one
+S08
+One deletion in extractor
+Yellow gap in extractor, edit distance one
+S09
+Two edits in 8-mer
+Outside standard one-edit budget; auto abstain, review candidate
+S10
+Repeated short shared primer
+No spurious automatic identity from 100% common substring
+S11
+Two identical gold records
+No arbitrary Excel-order strict lock; preserve record identities
+S12
+Two near-identical significant golds
+Gold-near-duplicate flag and competitor-aware assignment
+S13
+Two exactly duplicated extractor items
+Strict canonical dedup only; originals retained and counted consistently
+S14
+Extractors differ by one nucleotide
+Not deduplicated
+S15
+Two duplicate extractor strings with contradictory names
+Identity conflict visible; no silent name inheritance
+S16
+Item-local exact aptamer name
+Name evidence + same shared alignment engine; no name-only TP
+S17
+Independent aptamer_name list same length as aptamer_seq
+No positional pairing by index
+S18
+Wrong extractor name, exact sequence of other gold
+Contradiction preserved; no silent rescue that hides name error
+S19
+Competing viable semiglobal candidates
+Conditional global tie-break operates on component, not all pairs globally
+S20
+Equal global completion/indistinguishable options
+Abstain/manual review, not arbitrary row-order winner
+S21
+Runner-up can resolve one-to-one component
+Use existing edges; no unbounded rescoring
+S22
+Every candidate outside tolerance
+Manual review or unmatched; no automatic forced TP
+S23
+E>=G but extractor misses a gold
+Not automatically complete; gold remains unrecovered
+S24
+Empty attempted extractor row
+All scoreable significant golds unrecovered; no crash
+S25
+Unattempted gold paper
+Explicitly excluded from default attempted-run denominator
+S26
+Ambiguous paper alias
+Stop link; no across-paper nucleotide matching
+S27
+T/U mismatch or reverse complement
+Diagnostic only; no silent forward TP
+S28
+Modified/gapped/Unicode-confusable source
+Preserve raw, flag; no destructive standardization
+S29
+Multiple equally optimal semiglobal placements
+Flag potentially non-discriminative motif/identity
+S30
+Shuffle workbook row/order and cache state
+Same evidence-based decisions, same metrics
+21.3 Required score and review test matrix
+Test ID
+Scenario
+Required outcome
+M01
+G=5, E=8, M=T=4
+Closed-world TP4 FP4 FN1 P50 R80 F1~61.54%; matched 100%; recovery80%
+M02
+Same links, strict-whole T=3
+TP3 FP5 FN2 F1~46.15%; links unchanged
+M03
+Pending review with no accepted link
+No TP; pending gold/extractor already in G-T,E-T (never double-count)
+M04
+Human confirms within-tolerance association
+Accepted M and passing T update; source traces unchanged
+M05
+Human confirms out-of-tolerance association
+Matched-only includes incorrect pair, all-world FP/FN remain
+M06
+Human rejects one proposed candidate
+Other candidate edges remain available
+M07
+Human marks a gold missing
+Gold stays FN; status resolved for review workflow
+M08
+Reassign extractor already owned by another gold
+Explicit confirmation; atomic update of both endpoints
+M09
+Undo reviewer action
+Previous automatic result recoverable; append-only audit intact
+M10
+Replay review state on different hashes
+Reject import or require explicit migration
+M11
+E=0, G>0 attempted paper
+Recall 0, precision N/A, F1 0 per stated convention
+M12
+G=0 attempted population
+No misleading recovery score; N/A where needed
+M13
+Matched-only M=0
+N/A, not 100%
+M14
+Invalid/unscoreable significant gold
+Separate diagnostic inventory, excluded only under declared scoreability rule
+M15
+Identical alignment across dashboard and Excel
+Identical operations, colors, error counts and coordinates
+M16
+All dashboard toggle combinations
+No extra matching run and no changed association IDs
+M17
+Automatic vs reviewed metrics
+Both preserved; effective displayed with status banner
+M18
+Duplicate groups with identical golds
+Logical capacity/source IDs preserved; no double-use
+21.4 Full end-to-end acceptance gates
+Fresh virtual environment installs solely from Lite repo, with zero V1.2 import path dependence.
+The standalone evaluate(...) API returns deterministic results for synthetic workbooks.
+The actual CLI and the Streamlit upload→configure→run→review→export sequence execute successfully; tests invoke public entrypoints.
+Baseline curated fixtures test strict, core, tolerance, name evidence, global tie-break, abstention, duplicates and manual replay.
+Every scored TP/FP/FN reconciles to an original significant gold ID and/or unique extractor ID; no unauthorized excluded records.
+Automatic-only result remains immutable after review. Review-state import/export recreates current metrics exactly.
+Excel and dashboard show identical counted values, candidate IDs, distances and colored operations.
+No interactive scoring toggle causes candidate regeneration or a fresh assignment.
+Row-permutation tests and cache-on/off tests preserve stable scientific decisions.
+A human can inspect an arbitrary non-top candidate and confirm/reassign it without corrupting another gold’s state.
+Input failures generate readable validation diagnostics, not stack traces or fabricated 100% metrics.
+Source workbook bytes are unchanged, secrets/unpublished workbooks are absent from the committed repository, and no network/API call is required for local scoring.
+22. Implementation phases, migration and version control
+22.1 Build in test-gated layers, not one giant Codex rewrite
+Phase 1 — Standalone core: typed models, workbook adapters, source mappings, paper linking, significant-only scope, lossless normalization, dedup, global/full-gold DP, candidate graph, strict anchors, name evidence, one-to-one resolver, conditional global tie-breaker and automatic audit. Prove fresh-clone independence. Gate: synthetic paper tests and deterministic engine API pass.
+Phase 2 — Scoring and review semantics: implement four value pass flags, both metric populations with attempted-paper rules, immutable auto results, review event overlay and replay/undo/reassign. Gate: all M-series tests and numerical reconciliation pass.
+Phase 3 — Streamlit dashboard and exports: upload mappings, compact KPI controls, per-paper details, in-place manual review, green/yellow/red sequence trace, XLSX and JSON. Gate: end-to-end actual user workflow passes without Codex.
+Phase 4 — Legacy parity and deployment: run approved frozen historical fixtures; explicitly document policy-induced deviations from rushed evaluator, profile speed, pin package versions, prepare Windows launcher and team README, optionally deploy a restricted lab-hosted instance. Gate: PI can operate app without opening a Python file and developer can reproduce outputs from hashes/config.
+Codex may implement these phases, but each phase should be reviewed and tested before the next. Never ask it to re-audit every historical XLSX and PDF as part of a normal end-user Run. Full deep reproducibility checks belong in developer CI/explicit audit mode, not a routine score calculation.
+22.2 Legacy code extraction boundary
+Reuse tested algorithmic ideas and optionally independently migrated functions from the rushed evaluator: global and full-gold fitting DP, deterministic traceback, unique candidate evidence, Hungarian assignment, review integrity checks. Do not import the old modules or retain old top-level runtime dependency paths. Freeze a small behavior-reference corpus; validate migration parity on unchanged cases. The Lite budget changes for short sequences, significant-only scope and new tie-break/metric policy are deliberate differences to version and test, not unexplained regressions.
+22.3 Governance for scientific changes
+A scientific change includes altering allowed canonicalization, error budget, strict-lock qualifications, name-evidence requirements, tie-break order, duplicate counting, reviewed-status treatment or FP/FN denominator. Such a change needs a version bump, reason, targeted synthetic test, before/after results on the reference fixture and PI/team acknowledgment before replacing the default. Pure cosmetic UI changes should not change the scientific-policy version.
+23. Detailed execution walk-throughs
+23.1 Case A: the ideal straightforward strict match
+An attempted linked paper has one significant scoreable gold G1=ACGTACGT and extractor E1=acgt acgt with standardizable whitespace and case. Source records and fingerprints are preserved. Canonical strings become identical. Dedup stage finds no duplicate. Unique strict whole lock associates G1↔E1, and records MATCHED_STRICT. Name stage and contextual solver have no remaining nodes to resolve. Both global and semiglobal distances are zero. All four value flags pass. With G=E=M=T=1, all-sequences and matched-only scores are 100%; review not required. The raw extractor still shows its exact original case/spacing in provenance.
+23.2 Case B: a full-length extraction of a gold core
+A significant 40-nt gold is an exact internal region of an 84-nt extractor. Standardization leaves both strings intact. Strict whole fails, so no S1 lock. Item-local name, if present, is added as evidence. S3 fits every gold base to the contiguous 40-nt extractor region; d_semiglobal=0, strict_core=true. It records prefix and suffix overhangs in gray and fitted gold bases in green. If this is the unique credible association in the paper and no identity conflicts exist, S7 accepts it. strict_whole=false; whole tolerant will likely fail if 44 overhangs exceed the budget. Do not penalize the free flanks for core scoring. Global completion cannot veto a uniquely credible core candidate solely because the strings have different reported scopes.
+23.3 Case C: the conflicting 40/84 full-vs-core example
+Within one paper, G1 is a 40-nt core, G2 is the corresponding 84-nt full string, E1 is the 84-nt full string and E2 is the exact 40-nt core. Unique strict locks identify G1↔E2 and G2↔E1 if there are no identity collisions; otherwise the graph can achieve the same resolution. A less restrictive early semi-global matcher might see G1↔E1 at 100% and steal E1, but Lite never greedily consumes it. When conditional global alignment is needed, it shows exact whole matches at G1↔E2 and G2↔E1. Record all candidate edges so the audit reveals the discarded G1↔E1 plausible core fit. Both accepted pairs pass whole/core exact and tolerant. No double use and no forced match.
+23.4 Case D: named candidate with wrong nucleotides
+An extractor item explicitly says DUX4, and the gold has curated name DUX4, but two nucleotide positions differ in a 40-nt string. S2 performs its mini-alignment using the shared engine; name agrees, d=2, budget is two. S3 still compares that gold against every other eligible extractor, and other significant golds against this extractor. If the name-supported pair is uniquely credible and conflict-free, association can be accepted even though it is not strict. Under Strict core it fails, under Adaptive tolerant core it passes, and under whole modes the result depends on the whole distance. If the name instead points to an unrelated sequence outside budget, no name-only TP is awarded; review receives the explicit contradiction.
+23.5 Case E: contested near-duplicate golds
+G1 and G2 are distinct significant gold variants differing by one nucleotide. E1 differs by one nucleotide from both and is the only extractor. Both pairs are within one-edit tolerance. Gold-near-duplicate and candidate competition are flagged. Name evidence may help if sequence-local and credible, but cannot silently override an actual contradiction. Conditional global tie-break is attempted only if it can distinguish; if the global distances remain equal, the component stops at MANUAL_REVIEW. E1 remains one source item, so neither gold is double-counted as recovered. Closed-world provisional metrics reflect no unconfirmed TP; reviewer sees both candidate alignments.
+23.6 Case F: manual reviewer confirms a bad sequence
+G1 and E1 are thought to belong to the same aptamer but d_semiglobal=5 for L=40, budget two. Automatic matcher abstains as outside tolerance. In Paper Review, the reviewer selects G1 and E1, checks source/name/provenance, and confirms association. The event establishes MATCHED_HUMAN, not TP. Since d=5>B(40)=2, strict core and tolerant core both fail; matched-only correctness includes this as a wrong sequence, while all-sequences closed-world still counts one FP for E1 and one FN for G1. No nucleotide bases are edited or re-aligned to improve the result.
+23.7 Case G: paper complete but extra predictions remain
+A paper has three significant golds and seven unique extractor sequences. Three golds are confidently associated, all pass adaptive core; four extractors remain unassigned. The review button is not mandatory because all significant gold identities are resolved and no material conflict remains. All-sequences closed-world counts TP=3, FP=4, FN=0: precision 3/7≈42.86%, recall 100%, F1 6/10=60%. Matched-only correctness is 3/3=100% and significant recovery 3/3=100%. The app displays the caveat that the four extras might include valid non-significant discoveries, and labels their FP status relative to significant reference, not verified hallucination.
+23.8 Case H: attempted paper without any extracted sequences
+The selected extractor batch includes the paper key, but its aptamer_seq value is an empty list. The gold has two significant scoreable records. Parser correctly treats the paper as attempted-empty, not unattempted. G=2, E=0, M=T=0; significant recovery 0%, closed-world recall 0%, F1 0 under explicit zero-TP convention and precision N/A. Both gold records have no accepted association and may be explicitly marked reviewed missing without changing TP. No dummy extractor values or fabricated FP are created.
+24. Decisions intentionally deferred and change-control policy
+This is a frozen functional design, but not every conceivable scientific question has a validated quantitative threshold. The following choices remain deliberately conservative/explicit rather than silently guessed:
+Exact operational acceptance classifier for tricky short/low-complexity tolerant candidates. The agreed qualitative rule is strong identity and unique support or manual review. The implementation must start conservatively, expose reason codes, and be validated against curated hard fixtures; it must not invent a probability threshold that appears calibrated.
+How a global difference becomes reliably decisive in pathological gold-near-duplicate conflicts. No arbitrary completion-margin percentage is authorized. Clear unique preference under documented hierarchy may resolve; equivalent or materially contradictory cases must abstain. Any future numeric margin requires explicit scientific approval and regression tests.
+Support for modified aptamer notation, IUPAC wildcard semantics, reverse complement or RNA/DNA translation. Off by default; diagnostic warnings only unless separate policy approved.
+How distinct named biological aptamers with identical base strings should contribute to a future raw-item precision definition. v0.1 preserves multiplicity and prevents destructive duplicate suppression; scientific multiplicity cases should abstain rather than be guessed. Default nonconflicting scoring remains unique canonical predictions.
+Pool and Kd matching specifics. This master design covers the sequence module completely and its app surface; additional fields require separate scientific contracts before they are scored.
+Remote hosting and collaborative persistence provider. The local single-user browser app is the baseline. Institutional security requirements must determine shared hosting/authentication and storage; do not assume a public URL or free cloud tier is authorized for unpublished research workbooks.
+Whenever a decision is deferred, the default implementation behavior is audit, flag, and abstain; it must not quietly count a success, delete data, or alter the denominator.
+25. Final engineering acceptance checklist and references
+25.1 What the PI should be able to do
+Obtain or open the approved local AptaBench Lite app without launching Codex.
+Provide one extractor .xlsx, an approved gold .xlsx or saved local reference, and select the correct worksheets/columns.
+See the number of attempted papers, valid significant golds, unique predictions, exact duplicate items, accepted links and pending reviews before interpreting scores.
+Run the sequence evaluator once and switch All sequences/Matched only, Strict/Adaptive and Whole/Core without rematching.
+Open any paper, read clear color-coded matched sequences, and see correct names, source cells and distances.
+Enter Resolve manual review when significant golds remain unresolved or material conflicts exist; choose any gold and extractor, confirm/reject/mark missing/reassign/undo.
+Understand that a green nucleotide alignment can still be an unresolved identity and that human confirmation cannot turn wrong bases into correct ones.
+Receive an Excel workbook with matching colors and a machine-readable audit; close/reopen the app and restore reviewed state safely.
+Know whether a score is automatic-only or human-adjudicated and exactly what population its denominators represent.
+Share either the repository/install instructions or an approved restricted live URL, without accidentally publishing research data.
+25.2 What the developer must demonstrate
+Fresh-clone install with no AptaBench V1.2 module dependency.
+Safe structured-cell parsing, configurable column maps and precise source provenance.
+Significant-gold-only scope, deterministic paper linking and attempted-run handling.
+One strict normalized duplicate rule and gold-multiplicity safeguards.
+True full-gold fitting DP and true global DP, both with correct edit traces.
+Adaptive budget minimum one; no threshold checks based on rounded completion.
+Unique strict locks, sequence-local names as evidence, exhaustive remaining graph.
+One-to-one whole-paper resolution with conditional global tie-breaks and runner-up diagnostics.
+Honest abstention for unresolved identities, short motifs and ties.
+Fixed links under all four value criteria and both evaluation populations.
+Exactly reconciled metrics and provisional manual-review treatment.
+Durable, replayable manual review and conflict-safe reassignment.
+Shared alignment trace across green/yellow/red UI and Excel.
+Pure engine API, cached computations, pinned dependencies, smoke test of actual Streamlit and CLI entrypoints.
+Privacy-conscious source/control separation, no uncontrolled data uploads, documented deployment.
+25.3 Official technology references (verified during design)
+These references are technology/runtime documentation, not evidence that the envisioned application already exists. Exact API and hosting-plan details may change; lock compatible versions during implementation.
+Streamlit — command-line installation and virtual environments: https://docs.streamlit.io/get-started/installation/command-line
+Streamlit — app execution and local browser server: https://docs.streamlit.io/develop/concepts/architecture/run-your-app
+Streamlit — Python server/browser client architecture: https://docs.streamlit.io/develop/concepts/architecture/architecture
+Streamlit — widgets including uploader, data editor and download: https://docs.streamlit.io/develop/api-reference
+Streamlit — caching and its cache_data semantics: https://docs.streamlit.io/develop/concepts/architecture/caching
+Streamlit — session_state lifecycle limitations: https://docs.streamlit.io/develop/api-reference/caching-and-state/st.session_state
+Streamlit — deployment from GitHub: https://docs.streamlit.io/deploy/streamlit-community-cloud/deploy-your-app/deploy
+Streamlit — private/public sharing and viewer permissions: https://docs.streamlit.io/deploy/streamlit-community-cloud/share-your-app
+Streamlit — file upload memory behavior: https://docs.streamlit.io/knowledge-base/using-streamlit/where-file-uploader-store-when-deleted
+25.4 Internal sources and provenance
+The scientific requirements were synthesized from the full AptaBench Lite design conversation through November 13, 2026 and the historical working materials APTABENCH_LITE_SEQUENCE_MATCHING_MASTER_SPEC.md (earlier discussion draft), APTABENCH_CODEX_REVISED_CONTRACT.md (earlier rushed-evaluator contract), and the prior static audit of the rushed evaluator repository. The new document supersedes contradictory older draft behaviors, notably all-gold scoring, the old zero-edit budget for short aptamers, name-only locking, unbounded manual-review rescue, and unspecified duplicate/FP denominators. Historical file names and source column conventions are baseline examples to be validated against uploaded workbooks, not hidden hardcoded input assumptions.
+
+END OF FROZEN MASTER DESIGNAptaBench Lite · Sequence Matching & Scoring · UI/Review · Standalone Deployment · November 13, 2026

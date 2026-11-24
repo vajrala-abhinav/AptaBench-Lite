@@ -1,0 +1,111 @@
+{
+  "provenance": "Historical deadline_eval.py pure align function; synthetic strings only",
+  "reference_sha256": "a85e7b273f6692e9423f9f4e49fcbfc42d990a8a2d63826b7eb319d6e6f3d689",
+  "cases": [
+    {
+      "gold": "ACGTCAGT",
+      "extractor": "ACGTCAGT",
+      "mode": "core",
+      "distance": 0,
+      "optimal_interval_count": 1
+    },
+    {
+      "gold": "ACGTCAGT",
+      "extractor": "ACGTCAGT",
+      "mode": "whole",
+      "distance": 0,
+      "optimal_interval_count": 1
+    },
+    {
+      "gold": "ACGTCAGT",
+      "extractor": "TTACGTCAGTGG",
+      "mode": "core",
+      "distance": 0,
+      "optimal_interval_count": 1
+    },
+    {
+      "gold": "ACGTCAGT",
+      "extractor": "TTACGTCAGTGG",
+      "mode": "whole",
+      "distance": 4,
+      "optimal_interval_count": 1
+    },
+    {
+      "gold": "ACGTCAGT",
+      "extractor": "ACGCAGT",
+      "mode": "core",
+      "distance": 1,
+      "optimal_interval_count": 1
+    },
+    {
+      "gold": "ACGTCAGT",
+      "extractor": "ACGCAGT",
+      "mode": "whole",
+      "distance": 1,
+      "optimal_interval_count": 1
+    },
+    {
+      "gold": "ACGTCAGT",
+      "extractor": "ACGACAGT",
+      "mode": "core",
+      "distance": 1,
+      "optimal_interval_count": 1
+    },
+    {
+      "gold": "ACGTCAGT",
+      "extractor": "ACGACAGT",
+      "mode": "whole",
+      "distance": 1,
+      "optimal_interval_count": 1
+    },
+    {
+      "gold": "ACTG",
+      "extractor": "ACATG",
+      "mode": "core",
+      "distance": 1,
+      "optimal_interval_count": 2
+    },
+    {
+      "gold": "ACTG",
+      "extractor": "ACATG",
+      "mode": "whole",
+      "distance": 1,
+      "optimal_interval_count": 1
+    },
+    {
+      "gold": "ACGTCAGT",
+      "extractor": "CAGT",
+      "mode": "core",
+      "distance": 4,
+      "optimal_interval_count": 1
+    },
+    {
+      "gold": "ACGTCAGT",
+      "extractor": "CAGT",
+      "mode": "whole",
+      "distance": 4,
+      "optimal_interval_count": 1
+    },
+    {
+      "gold": "ACG",
+      "extractor": "ACGACG",
+      "mode": "core",
+      "distance": 0,
+      "optimal_interval_count": 2
+    },
+    {
+      "gold": "ACG",
+      "extractor": "ACGACG",
+      "mode": "whole",
+      "distance": 3,
+      "optimal_interval_count": 1
+    }
+  ],
+  "intentional_changes": [
+    "Lite minimum one-edit budget",
+    "Significant-only population",
+    "Contextual fixed associations",
+    "Conservative tie abstention",
+    "Completion uses edit distance / gold length"
+  ]
+}
