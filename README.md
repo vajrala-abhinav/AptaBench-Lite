@@ -124,9 +124,9 @@ is not equivalent to deleting persisted review.
 
 ## Export and CLI/library use
 
-Download Excel, JSON audit, review state and mapping configuration from the app.
-Excel includes Overview, Papers, Sequence, Alignment Detail, Alignment Cells, Review History, Run Info,
-Validation and Extractor Inventory. JSON includes all candidates, both automatic and
+Download a selectable three-tab Excel report, JSON audit, review state and mapping configuration from the app.
+Excel offers Simple Summary (all eight score views, per-paper metrics and per-gold completion), Debug Log (accepted/missing records, all candidates and alignment traces), and Logistics (inputs, validation, review history, inventory and run provenance).
+A browser controls the downloaded file's save location, not the Streamlit application. The full underlying audit is available in JSON. JSON includes all candidates, both automatic and
 reviewed results, source hashes, mappings and policy versions. Alignment colors and counts
 read the same stored trace as the dashboard; exporters do not run alignment. Excel's
 32,767-character cell limit is explicitly marked if exceeded; full provenance is in JSON.
