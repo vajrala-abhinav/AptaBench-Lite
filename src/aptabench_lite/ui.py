@@ -10,6 +10,8 @@ from .scoring import compute_metrics,paper_status,CAVEAT,review_diagnostics
 from .review import commit_event,save_review,import_review,export_review
 from .exports import export_audit,export_workbook
 from .presentation import alignment_html
+from .field_eval import FieldConfig, load_fields, field_results
+from .field_review import fingerprint as fields_fingerprint, from_bytes as field_review_from_bytes, save as save_field_review, append as append_field_review, to_bytes as field_review_to_bytes, replay as replay_field_review
 
 ROOT=Path(__file__).resolve().parents[2]
 STORE=Path.cwd()/'.local'/'reviews'
@@ -77,6 +79,84 @@ def configure(gb,eb,gname,ename):
     return cfg
 
 
+
+def configure_extra_fields(gb, eb, gold_sheet):
+    gi, ei = _inspect(gb), _inspect(eb)
+    headers = gi[gold_sheet]["headers"]
+    with st.expander("Optional Pool and Kd evaluation"):
+        st.caption("Separate field scores; sequence matching remains unchanged.")
+        left,right = st.columns(2)
+        pool_on=left.checkbox("Evaluate pool",key="evaluate-pool")
+        kd_on=right.checkbox("Evaluate Kd",key="evaluate-kd")
+        opts={}
+        if pool_on:
+            st.markdown("**Pool — distinct library template per paper**")
+            opts["gold_pool_template"]=choose("Gold pool template",headers,["gold_pool_sequence"],"pool-gold")
+            opts["gold_pool_type"]=choose("Gold pool type",headers,["gold_pool_type"],"pool-type",True)
+            opts["pool_sheet"]=st.selectbox("Extractor pool worksheet",list(ei),index=list(ei).index("pool_type") if "pool_type" in ei else 0,key="pool-sheet")
+            h=ei[opts["pool_sheet"]]["headers"]
+            opts["pool_key"]=choose("Extractor pool paper ID",h,["pk","paper_id"],"pool-key")
+            opts["pool_value"]=choose("Extractor pool template",h,["value"],"pool-value")
+            opts["pool_evidence"]=choose("Pool evidence text (optional)",h,["where_in_text"],"pool-evidence",True)
+        if kd_on:
+            st.markdown("**Kd — one gold measurement per aptamer**")
+            opts["gold_kd_value"]=choose("Gold Kd value",headers,["gold_kd_value"],"kd-gold")
+            opts["gold_kd_unit"]=choose("Gold Kd unit",headers,["gold_kd_unit"],"kd-unit")
+            opts["kd_sheet"]=st.selectbox("Extractor Kd worksheet",list(ei),index=list(ei).index("kd") if "kd" in ei else 0,key="kd-sheet")
+            h=ei[opts["kd_sheet"]]["headers"]
+            opts["kd_key"]=choose("Extractor Kd paper ID",h,["pk","paper_id"],"kd-key")
+            opts["kd_value"]=choose("Extractor Kd structured values",h,["raw_values","value"],"kd-value")
+        st.caption("Exact comparison after unit conversion; Kd tolerance is 5%. Uncertain identities need review.")
+    return FieldConfig(pool_enabled=pool_on,kd_enabled=kd_on,**opts)
+
+
+def field_review_path(data):
+    return STORE/(data["run_id"]+"-fields-"+fields_fingerprint(data)[:12]+".json")
+
+
+def field_review_panel(data, results, events):
+    st.subheader("Review Pool / Kd")
+    reviewer=st.text_input("Field reviewer identity",key="field-reviewer")
+    targets=[(kind,row) for kind in ("pool","kd") for row in results[kind]["rows"]]
+    remaining=[(kind,row) for kind,row in targets if row["status"]=="UNRESOLVED"]
+    st.write(f"Unresolved field records: **{len(remaining)}** of {len(targets)}")
+    show_all=st.checkbox("Show resolved records as well",value=False,key="field-review-all")
+    visible=targets if show_all else remaining
+    if not visible:
+        st.success("All evaluated field records have an association or a missing decision.")
+    else:
+        labels=[f"{kind.upper()} · {row['gold']['paper_id']} · {row['gold']['id']} · {row['status']}" for kind,row in visible]
+        idx=st.selectbox("Gold field record",list(range(len(visible))),format_func=lambda i:labels[i],key="field-record")
+        kind,row=visible[idx]
+        g=row["gold"]
+        st.json({"gold":g,"linked":row["extractor"],"comparison":row["comparison"]},expanded=False)
+        options=[e for e in results[kind]["predictions"] if e["paper_id"]==g["paper_id"]]
+        eid=st.selectbox("Prediction candidate",[""]+[e["id"] for e in options],
+            format_func=lambda x: "None / missing" if not x else x+" · "+next(e["raw"] for e in options if e["id"]==x)[:50],
+            key="field-candidate")
+        if eid:
+            chosen=next(e for e in options if e["id"]==eid)
+            st.json(chosen,expanded=False)
+        cols=st.columns(4)
+        for col,label,action in zip(cols,["Confirm identity","Reject pair","Mark missing","Leave unresolved"],
+                                     ["confirm","reject","missing","unresolved"]):
+            disabled=not reviewer.strip() or (action in ("confirm","reject") and not eid)
+            if col.button(label,key="field-"+action,disabled=disabled):
+                try:
+                    new_events,_=append_field_review(data,events,action,reviewer,kind,g["id"],eid)
+                    save_field_review(data,new_events,field_review_path(data),len(events))
+                    st.session_state["field-review-events"]=new_events
+                    st.rerun()
+                except ValueError as exc:st.error(str(exc))
+    if events and st.button("Undo latest field review",disabled=not reviewer.strip()):
+        try:
+            new_events,_=append_field_review(data,events,"UNDO_LAST",reviewer)
+            save_field_review(data,new_events,field_review_path(data),len(events))
+            st.session_state["field-review-events"]=new_events
+            st.rerun()
+        except ValueError as exc:st.error(str(exc))
+
+
 def metric_display(value,population,tolerance,scope):
     m=compute_metrics(value,population,tolerance,scope)
     st.caption('After human review' if m['review_mode']=='effective' else 'Automatic only')
@@ -127,7 +207,10 @@ def paper_detail(value,scope,population="all",tolerance="adaptive"):
     left,right=st.columns(2)
     with left:
         st.markdown('**Significant gold records**')
-        gid=st.selectbox('Gold record',list(paper.gold_ids),format_func=lambda g:f'{g} · {gm[g].name} · {len(gm[g].sequence.canonical)} nt',key=f'gold-{pid}') if paper.gold_ids else None
+        unresolved=[g for g in paper.gold_ids if g not in am and g not in missing]
+        only_unresolved=st.checkbox('Show unresolved golds first',value=bool(unresolved),key='only-unresolved')
+        choices=unresolved if only_unresolved and unresolved else list(paper.gold_ids)
+        gid=st.selectbox('Gold record',choices,format_func=lambda g:f'{g} · {gm[g].name} · {len(gm[g].sequence.canonical)} nt',key=f'gold-{pid}') if paper.gold_ids else None
     logical=list(paper.logical_extractor_ids)
     with right:
         st.markdown('**Extractor records**')
@@ -201,7 +284,7 @@ def main():
     with st.expander('Privacy and scientific scope'):
         st.write('Evaluation runs locally without external APIs. Do not expose this server publicly. Only significant gold sequences are scored. Pool/Kd scoring and biological identity guarantees are outside this version.')
     st.subheader('Upload & configure')
-    st.multiselect('Fields to evaluate',['Sequence'],default=['Sequence'],disabled=True)
+    st.caption('Sequence evaluation always runs. Pool and Kd are optional, independent fields.')
     left,right=st.columns(2)
     gu=left.file_uploader('Gold workbook (.xlsx)',type=['xlsx'],key='gold-upload')
     eu=right.file_uploader('Extractor workbook (.xlsx)',type=['xlsx'],key='extractor-upload')
@@ -215,6 +298,7 @@ def main():
         source_bytes(gb);source_bytes(eb)
         with st.expander('Worksheets & column mappings',expanded='value' not in st.session_state):
             cfg=configure(gb,eb,gname,ename)
+        extra_cfg=configure_extra_fields(gb,eb,cfg.gold_sheet)
         gold,ext,attempted,diags=_preview(gb,eb,cfg.to_json())
         st.subheader('Input validation preview')
         st.write(f'{len(gold)} gold rows · {sum(g.significant for g in gold)} significant records · {sum(len(g.sequence.canonical or "") for g in gold if g.significant)} significant bases · {len(attempted)} linked attempted papers · {len(ext)} raw extractor items')
@@ -228,7 +312,7 @@ def main():
                 st.session_state['value']=value;st.session_state['input-key']=(gb,eb,cfg.to_json())
     except (ValueError,OSError) as exc:st.error(str(exc));return
     if 'value' not in st.session_state:return
-    if st.session_state.get('input-key')!=(gb,eb,cfg.to_json()):
+    if st.session_state.get('input-key')!=(gb,eb,cfg.to_json(),extra_cfg.to_json()):
         st.warning('Inputs or mapping changed. Run evaluation to establish a new fingerprint; previous review remains stored.');return
     value=st.session_state['value'];run=base_run(value)
     if 'flash' in st.session_state:st.success(st.session_state.pop('flash'))
@@ -254,6 +338,27 @@ def main():
             st.info('No pending eligible significant golds in attempted papers.')
         st.caption('This is an abstention analysis, not an ablation or an estimated accuracy improvement.')
     paper_detail(value,sc,pop,tol)
+    extra_data=st.session_state.get('field-data')
+    if extra_data is not None:
+        st.header("Pool & Kd results")
+        events=st.session_state.get('field-review-events',[])
+        field_scores=replay_field_review(extra_data,events)
+        for kind in ("pool","kd"):
+            if not (extra_cfg.pool_enabled if kind=="pool" else extra_cfg.kd_enabled):continue
+            fs=field_scores[kind]
+            st.subheader(kind.upper())
+            columns=st.columns(4)
+            for col,key in zip(columns,("G","M","T","pending")):col.metric(key,fs[key])
+            st.caption(fs["scope_warning"])
+            st.dataframe([{"paper":v["gold"]["paper_id"],"gold_id":v["gold"]["id"],
+                           "extractor_id":v["extractor"]["id"] if v["extractor"] else "",
+                           "status":v["status"],"exact":v["comparison"].get("exact",False),
+                           "tolerant":v["comparison"].get("tolerant",False),
+                           "relative_error_pct":v["comparison"].get("relative_error_pct")}
+                          for v in fs["rows"]],hide_index=True)
+        field_review_panel(extra_data,field_scores,events)
+        st.download_button("Download Pool/Kd review backup",field_review_to_bytes(extra_data,events),
+                           "aptabench-field-review.json",mime="application/json")
     st.header('Download report & resume')
     st.caption('Every committed action is autosaved under .local/reviews. Download a portable review backup before moving machines. Re-upload the identical inputs and mappings to resume.')
     include_report = st.checkbox('Include downloadable Excel report', value=True, key='include-report')
