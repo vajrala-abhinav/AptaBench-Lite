@@ -151,3 +151,20 @@ Branch publication status is recorded in the final handoff after the push attemp
 Research-owner acceptance review of the implementation branch and conservative scientific
 policy. No implementation blocker remains for local sequence evaluation. To run, follow
 README.md or use `.venv/bin/python -m streamlit run app.py` from this repository.
+
+## 11. Feature branch: report/dashboard simplification (unverified changes)
+
+Branch: feature/three-sheet-dashboard-review, based on the previously verified sequence baseline.
+The sequence alignment, candidate matching, resolver and metric denominator definitions have not changed.
+
+- Excel was consolidated from nine fixed worksheets to three available tabs: Simple Summary, Debug Log and Logistics.
+- UI offers an inclusion checkbox and selectable tabs, with all three selected by default.
+- Browser controls the file save destination; Streamlit has no client-side folder picker.
+- Simple Summary includes eight metric combinations, per-paper rows, per-record completion and significant status.
+- Debug Log preserves effective and automatic association IDs, all candidate comparisons, aligned traces, reasons and source provenance.
+- Logistics preserves hashes, configurations, input diagnostics, review history, inventories and deduplication.
+- The full machine audit remains exportable as JSON.
+- A read-only unresolved-gold reason breakdown assists future safeguard ablation; it does not alter a match or score.
+- Tests were updated and expanded, but HAVE NOT BEEN EXECUTED on this feature branch. The prior 52-pass evidence only describes the original baseline.
+- Pool and Kd remain deferred; one-Kd-per-aptamer scoring requires agreed field mappings and rounding tolerance.
+- Do not merge until running Python 3.12 tests, inspecting exported workbook, and exercising Windows launch.
