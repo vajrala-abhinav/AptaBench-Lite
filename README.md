@@ -187,3 +187,44 @@ Safety limits: 20 MiB upload, 100 MiB expanded XLSX, 10,000 rows per selected sh
 500 headers, 100,000 characters/structured cell, depth 12, 1,000 items/cell, 2,000 nt/sequence,
 4 million DP cells/comparison. Limit violations stop with a message; they never silently
 skip hard comparisons. Missing/unsupported reference bases are unscoreable, not repaired.
+
+## Practical review and optional Pool/Kd fields (feature branch)
+
+Optional **Evaluate pool** and **Evaluate Kd** controls appear in the upload/mapping section.
+Choose gold columns and matching extractor worksheets before **Run evaluation**.
+The existing sequence alignment and scoring policy are unchanged. The sequence
+review panel now starts with unresolved golds; optional Pool/Kd records have a separate
+one-record-at-a-time **Review Pool / Kd** panel.
+
+Pool is scored once per distinct annotated selection-library template per paper,
+not once for each aptamer using it. Canonical pool-template equality is strict;
+the pool type is displayed as an independent exact-match diagnostic. A single
+unambiguous gold/extractor pool for a paper can be associated even when their
+templates differ; the association then fails the value comparison.
+
+Kd uses **one annotated Kd value per gold aptamer**, not a separate measurement table.
+The extractor's `kd` worksheet is expected to contain structured entries with
+`amount`, `unit` and optional aptamer `name` or `notes` with `Aptamer: <name>`.
+Only named unique same-paper associations or a sole noncontradictory same-paper
+gold/prediction pair are automatically linked. **Numerical closeness never
+establishes identity**. Supported units: fM, pM, nM, uM, mM, M.
+Comparison is exact after conversion to nM, then within a fixed **5% relative
+error**. Ranges, inequalities, unknown units and nonpositive values cannot pass.
+A manual identity confirmation never edits a measurement, so an incorrect number
+remains incorrect.
+
+For optional fields, the dashboard saves reviewer events under `.local/reviews/`,
+recalculates the results after each action, allows undo, and supports review
+backup export/import. An association or explicit missing outcome resolves its
+review queue entry. Field totals use a closed-world reference convention; unmatched
+predictions are **not verified biological false positives**. Pending means no
+final identity/missing decision has been recorded.
+
+The same **three-sheet Excel workbook** includes optional Pool/Kd metrics in
+Simple Summary, field outcomes in Debug Log, and field mappings/review history
+in Logistics. The full sequence JSON audit and sequence review backup remain
+separate downloads. To move field review between machines, use the Pool/Kd
+review backup, with identical workbooks and mappings.
+
+This feature branch needs verification on actual gold and extractor workbook schemas.
+It remains a local, single-user review app; not a shared authenticated service.

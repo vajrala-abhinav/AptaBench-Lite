@@ -168,3 +168,25 @@ The sequence alignment, candidate matching, resolver and metric denominator defi
 - Tests were updated and expanded, but HAVE NOT BEEN EXECUTED on this feature branch. The prior 52-pass evidence only describes the original baseline.
 - Pool and Kd remain deferred; one-Kd-per-aptamer scoring requires agreed field mappings and rounding tolerance.
 - Do not merge until running Python 3.12 tests, inspecting exported workbook, and exercising Windows launch.
+
+## 12. Practical workflow feature branch (new, targeted validation)
+
+Branch: feature/practical-review-pool-kd. This extends the three-sheet report
+branch without merging to main. It adds optional Pool/Kd workbook field mapping,
+exact library-template comparison, one-Kd-per-aptamer numerical evaluation with
+unit conversion and a 5% rounding tolerance, an independent append-only reviewed
+field overlay, recalculated field results, backup export/restore, and an
+unresolved-first sequence-review selector. Sequence matching and denominators
+remain unchanged; this is a deliberate constraint until manual adjudication
+provides evidence for relaxing conservative matching safeguards.
+
+Pool/Kd comparison has its own closed-world denominator caveat and never
+interprets numerical proximity as identity. Manual confirmation changes record
+identity only, not the stored value. Unknown/ambiguous field identities are left
+for review instead of forced matches.
+
+Synthetic tests were added for units, one-to-one field associations, review
+action and undo, optional field export, and unchanged sequence metrics.
+A branch-specific Python 3.12 CI workflow executes non-browser tests.
+**Check the current CI run before merging**; prior milestone evidence does not
+automatically validate this new feature.

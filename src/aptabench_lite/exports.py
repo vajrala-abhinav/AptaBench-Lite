@@ -31,7 +31,7 @@ def export_audit(value,metrics=None):
 REPORT_SHEETS = ("Simple Summary", "Debug Log", "Logistics")
 
 
-def export_workbook(value, metrics=None, sheets=None):
+def export_workbook(value, metrics=None, sheets=None, field_data=None, field_events=()):
     """Three-tab human-readable report. The JSON audit retains the complete machine record.
 
     Sheet selection only changes presentation; no matching or alignment is performed.
@@ -298,6 +298,54 @@ def export_workbook(value, metrics=None, sheets=None):
             put(ws, row, [g.id, g.paper_id, g.significant, g.scope_status,
                           g.sequence.canonical, g.sequence.status, asdict(g.source)])
             row += 1
+
+    if field_data is not None:
+        from .field_eval import field_results
+        from .field_review import active_actions
+        field_scores = field_results(field_data, active_actions(field_events))
+        if "Simple Summary" in selected:
+            ws = wb.get_worksheet_by_name("Simple Summary")
+            row = ws.dim_rowmax + 3
+            row = begin(ws, row, "POOL AND KD | EFFECTIVE FIELD SCORES",
+                        ["field", "gold", "predictions", "associations", "passing",
+                         "pending_review", "closed_world_precision", "closed_world_recall",
+                         "closed_world_F1", "matched_pair_correctness"])
+            for kind in ("pool", "kd"):
+                m=field_scores[kind]
+                if not (m["gold"] or m["predictions"]): continue
+                put(ws,row,[kind,m["G"],m["E"],m["M"],m["T"],m["pending"],
+                            m["precision"],m["recall"],m["f1"],m["matched_correctness"]])
+                row += 1
+        if "Debug Log" in selected:
+            ws = wb.get_worksheet_by_name("Debug Log")
+            row = ws.dim_rowmax + 3
+            row = begin(ws,row,"POOL AND KD | REVIEWED FIELD COMPARISONS",
+                        ["field","paper_id","gold_id","extractor_id","status",
+                         "gold_raw","extracted_raw","gold_nM","extracted_nM",
+                         "gold_type","extracted_type","exact","tolerant",
+                         "relative_error_pct","gold_source","prediction_source",
+                         "automatic_extractor"])
+            for kind in ("pool","kd"):
+                for item in field_scores[kind]["rows"]:
+                    g,e=item["gold"],item["extractor"]
+                    cmp=item["comparison"]
+                    put(ws,row,[kind,g["paper_id"],g["id"],e["id"] if e else "",
+                                item["status"],g.get("raw"),e.get("raw") if e else "",
+                                str(g["nm"]) if g.get("nm") is not None else "",
+                                str(e["nm"]) if e and e.get("nm") is not None else "",
+                                g.get("pool_type"),e.get("pool_type") if e else "",
+                                cmp.get("exact"),cmp.get("tolerant"),cmp.get("relative_error_pct"),
+                                g.get("source"),e.get("source") if e else "",item.get("auto_extractor_id")])
+                    row += 1
+        if "Logistics" in selected:
+            ws = wb.get_worksheet_by_name("Logistics")
+            row = ws.dim_rowmax + 3
+            row = begin(ws,row,"POOL/KD INPUT MAPPINGS AND WARNINGS",["key","value"])
+            for key,val in (("field_configuration",json.loads(field_data["config"])),
+                            ("field_input_warnings",field_data["warnings"]),
+                            ("field_review_event_count",len(field_events)),
+                            ("field_review_actions",list(field_events))):
+                put(ws,row,[key,val]);row+=1
 
     wb.close()
     return out.getvalue()
