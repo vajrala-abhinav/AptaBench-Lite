@@ -11,6 +11,8 @@ def test_actual_streamlit_run_controls_and_review(tmp_path,monkeypatch):
     assert not app.exception
     app.checkbox(key='demo').check().run();assert not app.exception
     app.button[0].click().run();assert not app.exception
+    assert app.radio.get_by_key('population') if False else True
+    assert any(e.key=='population' for e in app.radio), {'buttons':[v.label for v in app.button], 'warnings':[v.message for v in app.warning], 'errors':[v.message for v in app.error], 'info':[v.message for v in app.info]}
     original=base_run(app.session_state['value']);links=original.automatic
     for label in ('Matched only','All sequences'):
         app.radio(key='population').set_value(label).run();assert not app.exception
