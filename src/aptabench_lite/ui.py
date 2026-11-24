@@ -280,9 +280,9 @@ def paper_detail(value,scope,population="all",tolerance="adaptive"):
 
 def main():
     st.set_page_config(page_title='AptaBench Lite',layout='wide')
-    st.title('AptaBench Lite');st.caption('Significant-reference sequence evaluation · Local single-user review')
+    st.title('AptaBench Lite');st.caption('Significant-reference evaluation · Sequence, optional Pool/Kd · Live manual review')
     with st.expander('Privacy and scientific scope'):
-        st.write('Evaluation runs locally without external APIs. Do not expose this server publicly. Only significant gold sequences are scored. Pool/Kd scoring and biological identity guarantees are outside this version.')
+        st.write('Evaluation runs locally without external APIs. Do not expose this server publicly. Only significant gold references are scored. Pool/Kd are optional, conservative field evaluations, not biological identity guarantees.')
     st.subheader('Upload & configure')
     st.caption('Sequence evaluation always runs. Pool and Kd are optional, independent fields.')
     left,right=st.columns(2)
@@ -373,7 +373,7 @@ def main():
         if include_report:
             st.download_button(
                 'Download Excel report',
-                export_workbook(value, metrics, sheets=report_sheets) if report_sheets else b'',
+                export_workbook(value, metrics, sheets=report_sheets, field_data=extra_data, field_events=st.session_state.get('field-review-events',[])) if report_sheets else b'',
                 'aptabench-evaluation.xlsx',
                 mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
                 disabled=not report_sheets,
