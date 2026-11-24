@@ -19,7 +19,10 @@ def fingerprint(data):
         "run_id": data["run_id"],
         "config": data["config"],
         "gold": data["gold"],
-        "predictions": data["predictions"],
+        # Scope is derived from the same immutable sequence run. Excluding its
+        # display marker preserves compatibility with existing field backups.
+        "predictions": {kind:[{k:v for k,v in item.items() if k!="in_scope"} for item in rows]
+                        for kind,rows in data["predictions"].items()},
     })).hexdigest()
 
 
@@ -30,13 +33,23 @@ def active_actions(events):
 
 def replay(data, events):
     """Reject edited actions by validating every committed history prefix."""
+    if not isinstance(events,(list,tuple)) or len(events)>2000:
+        raise ValueError("Invalid field review history")
     checked = []
     for i, event in enumerate(events, 1):
-        if event["revision"] != i or not event["reviewer"].strip() or not isinstance(event["time"], str):
-            raise ValueError("Invalid field-review revision/reviewer")
+        if not isinstance(event,dict) or type(event.get("revision")) is not int or event["revision"]!=i:
+            raise ValueError("Invalid field-review revision")
+        if any(not isinstance(event.get(key),str) for key in ("action","reviewer","time")) or not event["reviewer"].strip():
+            raise ValueError("Invalid field-review action/reviewer/timestamp")
+        try:
+            if datetime.fromisoformat(event["time"]).tzinfo is None:raise ValueError("Timezone required")
+        except ValueError as exc:raise ValueError("Field review requires a timezone-aware ISO timestamp") from exc
+        if event["action"]!="UNDO_LAST":
+            if event.get("field") not in ("pool","kd") or any(not isinstance(event.get(key),str) for key in ("gold_id","extractor_id")):
+                raise ValueError("Invalid field-review record/field")
         if event["action"] == "UNDO_LAST":
             active = active_actions(checked)
-            if not active or event.get("target") != active[-1]["revision"]:
+            if type(event.get("target")) is not int or not active or event["target"] != active[-1]["revision"]:
                 raise ValueError("Undo must target most recent active field action")
         elif event["action"] not in ("confirm", "missing", "reject", "unresolved"):
             raise ValueError("Unsupported field-review action")
@@ -69,6 +82,8 @@ def from_bytes(data, raw):
     if len(raw)>2*1024*1024:raise ValueError("Field review exceeds 2 MiB")
     try:
         wrapper=json.loads(raw)
+        if not isinstance(wrapper,dict) or not isinstance(wrapper.get("payload"),dict):
+            raise ValueError("Invalid field-review JSON")
         payload=wrapper["payload"]
         if sha256(canonical(payload)).hexdigest()!=wrapper["sha256"]:
             raise ValueError("Field-review file checksum mismatch")
@@ -85,6 +100,7 @@ def from_bytes(data, raw):
 
 def save(data, events, path, expected_revision):
     """Atomic lock-guarded save; do not overwrite another revision."""
+    replay(data,events)
     path=Path(path);path.parent.mkdir(parents=True,exist_ok=True)
     lock=path.with_suffix(path.suffix+".lock")
     try:fd=os.open(lock, os.O_CREAT|os.O_EXCL|os.O_WRONLY, 0o600)

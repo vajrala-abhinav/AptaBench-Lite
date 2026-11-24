@@ -8,12 +8,12 @@ from .scoring import compute_metrics,paper_status,CAVEAT
 from .presentation import COLORS
 
 
-def audit_dict(value,metrics=None):
+def audit_dict(value,metrics=None,field_data=None,field_events=()):
     run=base_run(value)
     if metrics is not None:
         expected=compute_metrics(value,metrics['population'],metrics['tolerance'],metrics['sequence_scope'])
         if metrics!=expected:raise ValueError('Metrics do not match canonical result/view')
-    return {'schema_version':'lite-audit-1','run':asdict(run),'metadata':json.loads(run.metadata_json),
+    result = {'schema_version':'lite-audit-1','run':asdict(run),'metadata':json.loads(run.metadata_json),
             'configuration':json.loads(run.config_json),'selected_metrics':metrics or compute_metrics(value),
             'automatic_metrics':{f'{pop}/{tol}/{scope}':compute_metrics(run,pop,tol,scope) for pop in ('all','matched') for tol in ('strict','adaptive') for scope in ('whole','core')},
             'effective_metrics':{f'{pop}/{tol}/{scope}':compute_metrics(value,pop,tol,scope) for pop in ('all','matched') for tol in ('strict','adaptive') for scope in ('whole','core')},
@@ -21,10 +21,18 @@ def audit_dict(value,metrics=None):
             'review_events':[asdict(e) for e in value.events] if isinstance(value,ReviewedRun) else [],
             'marked_missing':list(value.missing) if isinstance(value,ReviewedRun) else [],
             'rejected_pairs':list(value.rejected) if isinstance(value,ReviewedRun) else [],'methodology':CAVEAT}
+    if field_data is not None:
+        from .field_eval import field_results
+        from .field_review import replay, fingerprint
+        if field_data["run_id"]!=run.run_id:raise ValueError("Field data belongs to a different evaluation run")
+        result["optional_fields"]={"fingerprint":fingerprint(field_data),"inputs":field_data,
+            "automatic_results":field_results(field_data),"effective_results":replay(field_data,field_events),
+            "review_events":list(field_events)}
+    return result
 
 
-def export_audit(value,metrics=None):
-    return json.dumps(audit_dict(value,metrics),ensure_ascii=False,indent=2,default=str,allow_nan=False).encode()
+def export_audit(value,metrics=None,field_data=None,field_events=()):
+    return json.dumps(audit_dict(value,metrics,field_data,field_events),ensure_ascii=False,indent=2,default=str,allow_nan=False).encode()
 
 
 
@@ -301,8 +309,9 @@ def export_workbook(value, metrics=None, sheets=None, field_data=None, field_eve
 
     if field_data is not None:
         from .field_eval import field_results
-        from .field_review import active_actions
-        field_scores = field_results(field_data, active_actions(field_events))
+        from .field_review import replay
+        if field_data["run_id"]!=run.run_id:raise ValueError("Field data belongs to a different evaluation run")
+        field_scores = replay(field_data, field_events)
         if "Simple Summary" in selected:
             ws = wb.get_worksheet_by_name("Simple Summary")
             row = ws.dim_rowmax + 3

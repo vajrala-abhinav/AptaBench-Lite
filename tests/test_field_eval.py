@@ -82,3 +82,30 @@ def test_kd_multiple_unnamed_predictions_remain_ambiguous():
     assert new["kd"]["M"]==1 and new["kd"]["pending"]==1
     with pytest.raises(ValueError,match="already assigned"):
         append(data,events,"confirm","PI","kd","kd:G2",e)
+
+
+def test_pool_validation_rejects_long_invalid_tails_without_hanging():
+    """The old nested base quantifier blocked Streamlit's entire process/GIL.
+
+    Use a subprocess timeout so a regression fails instead of hanging pytest.
+    """
+    import subprocess
+    import sys
+    check = subprocess.run([
+        sys.executable, '-c',
+        "from aptabench_lite.field_eval import normalized_pool; "
+        "assert normalized_pool('A'*100000+'X') is None; "
+        "assert normalized_pool('A'*100000+'N') is None; "
+        "assert normalized_pool('A'*100000+'[N40]'+'CGT') is not None"
+    ], timeout=5, capture_output=True, text=True)
+    assert check.returncode == 0, check.stderr
+
+
+def test_pool_validator_preserves_existing_template_language():
+    import itertools
+    import re
+    old = re.compile(r'(?:[ACGTU]+|N\d+)+')
+    for size in range(1, 6):
+        for tokens in itertools.product('ACN12X', repeat=size):
+            raw = ''.join(tokens)
+            assert (normalized_pool(raw) == raw) == bool(old.fullmatch(raw))
