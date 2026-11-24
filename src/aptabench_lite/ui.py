@@ -6,7 +6,7 @@ from .config import RunConfig
 from .readers import inspect_workbook,source_bytes,ingest
 from .engine import evaluate
 from .models import associations,base_run,ReviewedRun
-from .scoring import compute_metrics,paper_status,CAVEAT
+from .scoring import compute_metrics,paper_status,CAVEAT,review_diagnostics
 from .review import commit_event,save_review,import_review,export_review
 from .exports import export_audit,export_workbook
 from .presentation import alignment_html
@@ -240,6 +240,19 @@ def main():
     pop='all' if population=='All sequences' else 'matched';tol='strict' if tolerance=='Strict' else 'adaptive';sc='whole' if scope=='Whole string' else 'core'
     metrics=metric_display(value,pop,tol,sc)
     st.dataframe([{'Paper':p.id,'Attempted':p.attempted,'Status':paper_status(value,p),**{k:v for k,v in compute_metrics(value,pop,tol,sc,p.id).items() if k in ('G','E','M','T','pending_gold','significant_recovery')}} for p in run.papers],hide_index=True)
+    with st.expander('Why are some gold records unresolved? (diagnostics)'):
+        diagnostic = review_diagnostics(value)
+        st.caption(diagnostic['interpretation'])
+        st.write(f"{diagnostic['unresolved_gold']} significant gold records still need an identity decision.")
+        if diagnostic['reason_counts']:
+            st.dataframe(
+                [{'Reason': key, 'Unresolved gold records': count}
+                 for key, count in diagnostic['reason_counts']],
+                hide_index=True,
+            )
+        else:
+            st.info('No pending eligible significant golds in attempted papers.')
+        st.caption('This is an abstention analysis, not an ablation or an estimated accuracy improvement.')
     paper_detail(value,sc,pop,tol)
     st.header('Download report & resume')
     st.caption('Every committed action is autosaved under .local/reviews. Download a portable review backup before moving machines. Re-upload the identical inputs and mappings to resume.')
