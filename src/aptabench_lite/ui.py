@@ -1,4 +1,7 @@
 from dataclasses import asdict
+import os
+from time import perf_counter
+from .performance import Capture, measured
 from pathlib import Path
 import json
 import streamlit as st
@@ -27,6 +30,15 @@ def _preview(gb,eb,cfg):return ingest(gb,eb,RunConfig(**json.loads(cfg)))
 
 @st.cache_data(show_spinner=False,max_entries=4)
 def _evaluate(gb,eb,cfg):return evaluate(gb,eb,RunConfig(**json.loads(cfg)))
+
+
+@st.cache_data(show_spinner=False,max_entries=4)
+def _load_fields(gb,eb,run_id,cfg,_run):
+    # Hash source bytes/config/identity, not the large candidate graph. _run is
+    # the already evaluated immutable run and is used only on a cache miss.
+    if _run.run_id!=run_id:raise ValueError('Optional field run identity mismatch')
+    return load_fields(_run,gb,eb,FieldConfig(**json.loads(cfg)))
+
 
 
 def choose(label,headers,candidates,key,optional=False):
@@ -278,7 +290,7 @@ def paper_detail(value,scope,population="all",tolerance="adaptive"):
             except ValueError as exc:st.error(str(exc))
 
 
-def main():
+def _main():
     st.set_page_config(page_title='AptaBench Lite',layout='wide')
     st.title('AptaBench Lite');st.caption('Significant-reference evaluation · Sequence, optional Pool/Kd · Live manual review')
     with st.expander('Privacy and scientific scope'):
@@ -306,17 +318,23 @@ def main():
         if diags:
             with st.expander(f'Validation diagnostics ({len(diags)})',expanded=not attempted):st.dataframe([asdict(d) for d in diags],hide_index=True)
         if st.button('Run evaluation',type='primary',disabled=not attempted):
-            with st.spinner('Evaluating fixed sequence associations…'):
-                run=_evaluate(gb,eb,cfg.to_json());path=STORE/(run.run_id+'.json')
-                value=import_review(run,path.read_bytes()) if path.exists() else run
+            with measured('run_evaluation'):
+                with st.spinner('Evaluating fixed sequence associations…'):
+                    run=_evaluate(gb,eb,cfg.to_json())
+                with st.spinner('Loading optional Pool/Kd fields…'):
+                    extra_data=_load_fields(gb,eb,run.run_id,extra_cfg.to_json(),run) if extra_cfg.pool_enabled or extra_cfg.kd_enabled else None
+                with st.spinner('Restoring saved review decisions…'):
+                    with measured('review_state_restore'):
+                        path=STORE/(run.run_id+'.json')
+                        value=import_review(run,path.read_bytes()) if path.exists() else run
+                        if extra_data:
+                            path=field_review_path(extra_data)
+                            field_events=field_review_from_bytes(extra_data,path.read_bytes()) if path.exists() else []
+                        else:field_events=[]
+                # Publish one complete transaction after every stage succeeds.
                 st.session_state['value']=value
-                extra_data=load_fields(run,gb,eb,extra_cfg) if extra_cfg.pool_enabled or extra_cfg.kd_enabled else None
                 st.session_state['field-data']=extra_data
-                if extra_data:
-                    path=field_review_path(extra_data)
-                    st.session_state['field-review-events']=field_review_from_bytes(extra_data,path.read_bytes()) if path.exists() else []
-                else:
-                    st.session_state['field-review-events']=[]
+                st.session_state['field-review-events']=field_events
                 st.session_state['input-key']=(gb,eb,cfg.to_json(),extra_cfg.to_json())
     except (ValueError,OSError) as exc:st.error(str(exc));return
     if 'value' not in st.session_state:return
@@ -389,15 +407,37 @@ def main():
         )
         st.caption('The download goes to the browser default folder, or a location your browser asks you to choose. This app cannot specify a local client-side folder.')
     try:
-        if include_report:
-            st.download_button(
-                'Download Excel report',
-                export_workbook(value, metrics, sheets=report_sheets, field_data=extra_data, field_events=st.session_state.get('field-review-events',[])) if report_sheets else b'',
-                'aptabench-evaluation.xlsx',
-                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                disabled=not report_sheets,
-                key='download-xlsx',
-            )
+        if include_report and report_sheets:
+            # Streamlit evaluates the download_button data argument on every
+            # rerun. Preparing an expensive report only on explicit request
+            # avoids rebuilding all nucleotide-rich Excel rows while reviewing.
+            from hashlib import sha256
+            review_events = value.events if isinstance(value, ReviewedRun) else ()
+            field_events = st.session_state.get('field-review-events', [])
+            report_identity = sha256(repr((
+                run.run_id, review_events, field_events, metrics['population'],
+                metrics['tolerance'], metrics['sequence_scope'], tuple(report_sheets),
+                fields_fingerprint(extra_data) if extra_data is not None else None,
+            )).encode()).hexdigest()
+            if st.button('Prepare Excel report', key='prepare-xlsx'):
+                with st.spinner('Preparing the selected report once…'):
+                    st.session_state['prepared-xlsx'] = (
+                        report_identity,
+                        export_workbook(
+                            value, metrics, sheets=report_sheets,
+                            field_data=extra_data, field_events=field_events,
+                        ),
+                    )
+            prepared = st.session_state.get('prepared-xlsx')
+            if prepared and prepared[0] == report_identity:
+                st.download_button(
+                    'Download Excel report', prepared[1],
+                    'aptabench-evaluation.xlsx',
+                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    key='download-xlsx',
+                )
+            else:
+                st.caption('Prepare the report after finishing review; changes to review decisions or settings require a fresh report.')
         st.download_button('Download JSON audit',export_audit(value,metrics),'aptabench-audit.json',mime='application/json',key='download-audit')
         st.download_button('Download review state',export_review(value),'aptabench-review.json',mime='application/json',key='download-review')
         st.download_button('Download mapping configuration',cfg.to_json(),'aptabench-config.json',mime='application/json')
@@ -413,3 +453,33 @@ def main():
             if restored.events[:len(old_events)]!=old_events:raise ValueError('Imported history conflicts with current review; use a fresh session/store to inspect it')
             save_review(restored,path,expected_revision=current);st.session_state['value']=restored;st.rerun()
         except ValueError as exc:st.error(str(exc))
+
+
+
+def main():
+    trace=os.environ.get('APTABENCH_PERFORMANCE_LOG')
+    if not trace:
+        return _main()
+    capture=Capture()
+    start=perf_counter()
+    completed=False
+    try:
+        with capture.activate():
+            _main()
+        completed=True
+    finally:
+        # Disabled by default. The opt-in trace stores timings/counts ONLY,
+        # never widget values, source strings, paths from uploads, or records.
+        total=perf_counter()-start
+        excluded=sum(capture.stages.get(k,{}).get('seconds',0) for k in ('run_evaluation','excel_export'))
+        result={'script_total_s':total,'render_excluding_run_export_s':max(0,total-excluded),
+                'stages':capture.stages,'has_run': 'value' in st.session_state,'completed':completed,
+                'field_review_revision':len(st.session_state.get('field-review-events',[])),
+                'sequence_review_revision':len(getattr(st.session_state.get('value'),'events',()))}
+        st.session_state['_performance']=result
+        trace=os.environ.get('APTABENCH_PERFORMANCE_LOG')
+        if trace:
+            destination=Path(trace)
+            destination.parent.mkdir(parents=True,exist_ok=True)
+            with destination.open('a',encoding='utf-8') as stream:
+                stream.write(json.dumps(result,sort_keys=True)+'\n')

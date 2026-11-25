@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - feature/practical-review-pool-kd
+      - fix/pool-kd-performance-privacy
   workflow_dispatch:
 jobs:
   test:

@@ -1,4 +1,5 @@
 """Metrics over fixed associations. Never imports resolver/alignment."""
+from .performance import timed
 from .models import base_run,associations,ReviewedRun
 
 CAVEAT=('All sequences (closed-world): This score checks every unique extractor prediction against the significant gold reference only. '
@@ -7,6 +8,7 @@ CAVEAT=('All sequences (closed-world): This score checks every unique extractor 
 'Unresolved manual-review candidates count as unconfirmed recoveries until adjudicated.')
 
 
+@timed("sequence_scoring")
 def compute_metrics(value,population='all',tolerance='adaptive',sequence_scope='core',paper_id=None):
     if population not in ('all','matched') or tolerance not in ('strict','adaptive') or sequence_scope not in ('core','whole'):
         raise ValueError('Unknown scoring view')

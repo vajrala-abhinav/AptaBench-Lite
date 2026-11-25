@@ -7,6 +7,8 @@ ROOT=Path(__file__).resolve().parents[1]
 
 def test_actual_streamlit_run_controls_and_review(tmp_path,monkeypatch):
     monkeypatch.chdir(tmp_path)
+    from aptabench_lite import ui
+    monkeypatch.setattr(ui,'STORE',tmp_path/'.local/reviews')
     app=AppTest.from_file(str(ROOT/'app.py')).run()
     assert not app.exception
     app.checkbox(key='demo').check().run();assert not app.exception

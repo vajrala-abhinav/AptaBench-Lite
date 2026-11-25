@@ -190,3 +190,66 @@ action and undo, optional field export, and unchanged sequence metrics.
 A branch-specific Python 3.12 CI workflow executes non-browser tests.
 **Check the current CI run before merging**; prior milestone evidence does not
 automatically validate this new feature.
+
+## 13. Full real-input Pool/Kd profiling — November 25, 2026
+
+Current work: `fix/pool-kd-performance-privacy`, based on `65c801a`.
+Status: **VERIFIED** locally for performance, repeatability and UI behavior. No merge
+was performed; latest user instruction explicitly requires approval before merging.
+The earlier integration branch is separate and has not been promoted by this task.
+
+Full input availability was confirmed from the existing user uploads: preview exactly
+248 gold rows, 116 significant records, 6,309 significant bases, 44 attempted linked
+papers and 308 raw sequence items. No replacement extractor was requested or needed.
+Only this pair was used for real-data reproduction/benchmarks. Normal unit fixtures
+remain synthetic as requested by the complete regression-suite requirement.
+
+Completed:
+- Preserved the preliminary safe validator and on-demand Excel implementation.
+- Bounded legacy-regex probe reproduced the freeze on the supplied gold after imports
+  and reading completed; killed after 250ms. Safe scan of all 243 nonblank Pool values:
+  1.70ms, >147x below the canceled lower bound. Preliminary count 245 was not reproduced;
+  this supplied workbook has 243 nonblank and three whitespace-only non-null Pool cells.
+- A second bounded old-validator probe inside actual load_fields timed out after
+  sequence finished and before Excel started, confirming spinner-stage attribution.
+- Two cold runs of each of four modes profiled XML parsing, sequence computation,
+  Pool/Kd normalization, real-file review restoration, scoring and Excel export.
+- Opt-in context-local instrumentation records only call counts and durations. New
+  alignment counts measure cache misses, not calls that reuse an existing trace.
+- Optional field ingestion cached by input bytes, run ID and mappings; review restoration
+  stays live. Repeated Run, score toggles, exports and resume had zero input parse/alignment.
+- Separate sequence / optional field / review-restore spinners make the original stall
+  attributable to Pool normalization in load_fields, not to Excel outside that spinner.
+- UI publishes state only after all Run stages succeed; prepared reports invalidate on
+  scoring/review changes. All three sheets, review backup import/resume/undo checked.
+- Scientific-output hashes match starting commit 65c801a for all four modes and eight
+  sequence views. No metric/association/tolerance/one-to-one change was introduced.
+
+Actual checks:
+- Initial full suite: 59 passed in 15.52s.
+- Focused engine/reader/normalization/field/UI suite during implementation: 39 passed.
+- Full Python 3.12 suite with supplied-input variables: **63 passed in 44.87s**, no skips.
+- Latest default-off tracing/privacy focused checks: 3 passed in 1.35s; real cache check
+  1 passed in 4.16s. Browser synchronization was corrected to wait for a completed
+  post-action render/revision, avoiding downloading stale pre-undo widget data.
+- Scientific baseline comparison: all four modes / all eight sequence views equal.
+- Cold benchmark: two repetitions per mode, scientific repeatability verified; source
+  hashes unchanged. Detailed anonymized table: docs/performance-benchmark.md.
+- `pip check`: no broken requirements; no new dependencies. `git diff --check`: clean.
+
+Private evidence (ignored; never commit): `.local/performance-final-benchmark/`,
+`.local/performance-final-suite/`, scientific comparison and local review snapshots.
+The committed benchmark document contains only aggregate timings/counts and truncated
+fingerprints. No workbooks, raw biological strings, JSON evidence or credentials staged.
+
+Published: performance code commit `cc4e1c8` is pushed to
+`fix/pool-kd-performance-privacy`; working tree is clean. Main remains `ea45628`.
+`gh pr create --base feature/practical-review-pool-kd --head fix/pool-kd-performance-privacy`
+failed because `https://api.github.com/graphql` returns Forbidden in this environment.
+No new PR was created. The complete focused description is in ignored
+`.local/performance-pr.md`; the review/creation URL is:
+https://github.com/vajrala-abhinav/AptaBench-Lite/compare/feature/practical-review-pool-kd...fix/pool-kd-performance-privacy?expand=1
+
+Remaining external blocker: permit GitHub API access or create that focused PR from
+the compare page. Implementation and local verification are complete. Remote CI and
+native Windows/macOS are not claimed verified. No merge was performed; do not auto-merge.
