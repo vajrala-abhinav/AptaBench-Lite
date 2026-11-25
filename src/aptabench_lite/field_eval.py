@@ -58,7 +58,7 @@ def normalized_pool(raw):
     value = re.sub(r"[- ]*3['′’]\s*$", "", value)
     value = re.sub(r"\s+", "", value).replace("-", "")
     value = re.sub(r"\[N(\d+)\]", r"N\1", value)
-    return value if re.fullmatch(r"(?:[ACGTU]+|N\d+)+", value) else None
+    return value if re.fullmatch(r"(?:[ACGTU]|N[0-9]+)+", value) else None
 
 
 def pool_type(raw):
