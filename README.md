@@ -124,8 +124,12 @@ is not equivalent to deleting persisted review.
 
 ## Export and CLI/library use
 
-Download a selectable three-tab Excel report, JSON audit, review state and mapping configuration from the app.
-Excel offers Simple Summary (all eight score views, per-paper metrics and per-gold completion), Debug Log (accepted/missing records, all candidates and alignment traces), and Logistics (inputs, validation, review history, inventory and run provenance).
+Prepare a selectable six-sheet Excel report on demand, then download it alongside the JSON audit, review state and mapping configuration.
+The ordered sheets are Simple Summary (overall metrics and interpretation), Per-Paper Results,
+Matched Pairs (effective accepted associations), Debug Log (unresolved outcomes and full candidate audit),
+Logistics & Review, and Record Inventory. Select any nonempty subset. Review, scoring or worksheet
+changes require preparing a fresh report. See [the section migration table and report conventions](docs/excel-report-layout.md).
+Generate a synthetic sample with `.venv/bin/python scripts/make_report_example.py`; no research inputs are read.
 A browser controls the downloaded file's save location, not the Streamlit application. The full underlying audit is available in JSON. JSON includes all candidates, both automatic and
 reviewed results, source hashes, mappings and policy versions. Alignment colors and counts
 read the same stored trace as the dashboard; exporters do not run alignment. Excel's

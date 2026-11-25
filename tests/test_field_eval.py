@@ -66,7 +66,7 @@ def test_fields_and_manual_review_do_not_modify_sequences():
     assert back["kd"]["T"]==2
     assert compute_metrics(run)==original
     wb=load_workbook(BytesIO(export_workbook(run,field_data=extra,field_events=events)))
-    assert wb.sheetnames==["Simple Summary","Debug Log","Logistics"]
+    assert wb.sheetnames==["Simple Summary","Per-Paper Results","Matched Pairs","Debug Log","Logistics & Review","Record Inventory"]
     assert any(cell.value=="POOL AND KD | EFFECTIVE FIELD SCORES" for row in wb["Simple Summary"] for cell in row)
 
 

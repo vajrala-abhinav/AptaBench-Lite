@@ -84,7 +84,7 @@ def test_M13_no_matches(make_run):
 def test_M15_exports_trace_injection(make_run):
     r=make_run([('=gold','ACGTCAGT','=formula')],[('P',[{'sequence':'ACGTCAGT'}])])
     data=export_workbook(r);b=load_workbook(BytesIO(data),rich_text=True)
-    assert b.sheetnames==['Simple Summary','Debug Log','Logistics']
+    assert b.sheetnames==['Simple Summary','Per-Paper Results','Matched Pairs','Debug Log','Logistics & Review','Record Inventory']
     ws=b['Debug Log']
     gold_cells=[cell for row in ws for cell in row if cell.value=='=gold']
     assert gold_cells and all(cell.data_type=='s' for cell in gold_cells)
@@ -139,7 +139,7 @@ def test_html_excel_exact_colors_and_trace(make_run):
     assert COLORS['FREE_EXTRACTOR_FLANK'] == '#D9DDE3'
 
 
-def test_three_sheet_options_and_summary_views(make_run):
+def test_six_sheet_options_and_summary_views(make_run):
     from aptabench_lite.exports import REPORT_SHEETS
     r=make_run([('a','ACGTCAGT')],[('P',[{'sequence':'ACGTCAGT'}])])
     book=load_workbook(BytesIO(export_workbook(r)))
@@ -147,8 +147,8 @@ def test_three_sheet_options_and_summary_views(make_run):
     summary=book['Simple Summary']
     text=[cell.value for row in summary for cell in row]
     assert text.count('all') >= 4 and text.count('matched') >= 4
-    assert 'Significant_Status' in text
-    assert 'core_completion_%' in text
+    assert 'Significant_Status' not in text
+    assert 'core_completion_%' not in text
     assert load_workbook(BytesIO(export_workbook(r,sheets=['Simple Summary']))).sheetnames==['Simple Summary']
     with pytest.raises(ValueError,match='Choose one'):export_workbook(r,sheets=[])
     with pytest.raises(ValueError,match='Choose one'):export_workbook(r,sheets=['Bad Tab'])

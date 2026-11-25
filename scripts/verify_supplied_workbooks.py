@@ -57,7 +57,7 @@ def verify(gold,extractor,output):
             assert back==replay(all_data,[])
     start=perf_counter();xlsx=export_workbook(run,field_data=all_data);excel_s=perf_counter()-start
     book=load_workbook(BytesIO(xlsx),read_only=True)
-    assert book.sheetnames==['Simple Summary','Debug Log','Logistics'];book.close()
+    assert book.sheetnames==['Simple Summary','Per-Paper Results','Matched Pairs','Debug Log','Logistics & Review','Record Inventory'];book.close()
     (output/'evaluation.xlsx').write_bytes(xlsx)
     start=perf_counter();audit=export_audit(run,field_data=all_data);audit_s=perf_counter()-start
     payload=json.loads(audit);assert payload['selected_metrics']==seq_counts

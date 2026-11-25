@@ -11,7 +11,7 @@ from .engine import evaluate
 from .models import associations,base_run,ReviewedRun
 from .scoring import compute_metrics,paper_status,CAVEAT,review_diagnostics
 from .review import commit_event,save_review,import_review,export_review
-from .exports import export_audit,export_workbook
+from .exports import export_audit,export_workbook,REPORT_SHEETS,REPORT_SHEETS
 from .presentation import alignment_html
 from .field_eval import FieldConfig, load_fields, field_results
 from .field_review import fingerprint as fields_fingerprint, from_bytes as field_review_from_bytes, save as save_field_review, append as append_field_review, to_bytes as field_review_to_bytes, replay as replay_field_review
@@ -75,7 +75,7 @@ def configure(gb,eb,gname,ename):
         en=choose('Sequence-row aptamer name (simple tables only)',eh,['name','aptamer_name'],'en',True)
         notes=choose('Sequence-row notes (simple tables only)',eh,['notes'],'notes',True)
         seqkey=st.text_input('Sequence key inside structured items','sequence',key='seqkey')
-        st.caption('Names in independent aptamer_name sheets are paper context only. They are never paired by list position. Pool and Kd scoring await separate specifications.')
+        st.caption('Names in independent aptamer_name sheets are paper context only. They are never paired by list position. Pool and Kd can be evaluated independently using the optional controls below.')
     with st.expander('Advanced batch scope and filename aliases'):
         attempted=st.text_area('Additional processed paper keys (one per line)',key='attempted')
         suffixes=st.text_input('Known artifact suffixes to remove (comma separated)',key='suffixes')
@@ -418,8 +418,8 @@ def _main():
     st.caption('Every committed action is autosaved under .local/reviews. Download a portable review backup before moving machines. Re-upload the identical inputs and mappings to resume.')
     include_report = st.checkbox('Include downloadable Excel report', value=True, key='include-report')
     if include_report:
-        st.caption('One workbook, three focused tabs. Select which tabs to include. Default: all three.')
-        report_options = ['Simple Summary', 'Debug Log', 'Logistics']
+        st.caption('One workbook, six focused worksheets. Select which sheets to include. Default: all six.')
+        report_options = list(REPORT_SHEETS)
         report_sheets = st.multiselect(
             'Worksheets', report_options, default=report_options, key='report-sheets'
         )

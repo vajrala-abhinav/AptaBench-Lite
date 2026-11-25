@@ -445,3 +445,118 @@ force pushes or source-branch deletion. Final check results and merge SHA are re
 on https://github.com/vajrala-abhinav/AptaBench-Lite/pull/5 . All published branch and
 PR head SHAs are checked for ancestry in the resulting main, and no unrelated
 reference repository or source workbook is modified.
+
+
+## 17. Excel report redesign — IN_PROGRESS
+
+Branch: `feature/excel-report-redesign`, based on main `d535472`. Verified remote
+`fix/pool-kd-performance-privacy` tip `9a053a9` is already an ancestor of main.
+Scope: Excel projection and report selection labels/tests/docs only; scientific
+algorithms, fixed associations, field evaluation and review behavior remain unchanged.
+Plan: six ordered sheets, compact interpretation/metrics, dedicated paper and pair
+tables, complete candidate audit, operational/review log and separated inventory.
+Existing on-demand report identity/invalidation is retained. Verification pending.
+Private supplied workbooks exist under ignored `.local/user-inputs`; use only those
+for optional real-data validation and synthetic fixtures for committed examples.
+
+Report implementation: **IMPLEMENTED_UNVERIFIED** (comprehensive verification ongoing).
+Focused original export/field tests: **22 passed in 1.25s**. New report tests: **7 passed
+in 2.41s**, including frozen pre-refactor numerical dictionaries, all candidate IDs,
+effective incorrect human confirmation, Pool/Kd provenance, sheet subsets and AppTest
+report invalidation after scoring/sheet/field review/sequence review changes.
+Synthetic six-sheet sample generated successfully with the committed generator under
+`.local/report-redesign/synthetic-six-sheet.xlsx`; migration map in
+`docs/excel-report-layout.md`. Full browser/real-input suite and privacy checks pending.
+
+Real-input report comparison: **VERIFIED** for sequence, Pool, Kd and Pool+Kd on the
+supplied full pair. Baseline `d535472` exporter/audit loaded privately for comparison;
+all eight calculated views and complete scientific audits match. All 50 accepted
+associations and 606 candidates exported, no new alignment calls, source hashes
+unchanged (prefixes `a015e5b896c2` / `6986787019d5`). Final export observations
+0.918–1.033 s versus old 0.555–0.630 s; details in docs/excel-report-layout.md.
+Sample readback: six exact sheets, 51-row summary, populated-section table filters,
+frozen headers, percentage formats and rich-text alignments. Native Excel rendering
+is unavailable; structural/style metadata readback and browser downloads are verified.
+
+An intermediate comprehensive run had **84 passed / 1 failed**: the supplied-input
+verification script retained its old three-sheet assertion. Updated that script and
+the benchmark assertion to the explicit six-sheet contract; affected real-input check
+rerun: **1 passed in 5.62s**. Final focused export/field/UI tests: **29 passed in 3.37s**.
+`pip check`: no broken requirements. Comprehensive final rerun in progress.
+
+### Final report-redesign acceptance — VERIFIED
+
+- Python 3.12 full suite, with the actual supplied paths explicitly enabled:
+  `APTABENCH_TEST_GOLD=<private gold> APTABENCH_TEST_EXTRACTOR=<private extractor>
+  .venv/bin/python -m pytest -q --basetemp .local/report-redesign/final-tests`
+  → **85 passed in 99.03s**, no skips/failures. Includes Chromium upload/download,
+  real-file four-mode evaluation, review resume/import/undo and cache checks.
+- Seven new report-focused tests verify exact six-sheet order and independent subsets,
+  all eight overall views/definitions, no summary inventories, exact effective pairs,
+  all candidates/outcomes, Pool/Kd review/provenance, raw/logical/duplicate inventories,
+  frozen pre-refactor metrics and report invalidation after relevant state changes.
+- Only `exports.py` and the UI report options/import/caption changed under the engine
+  package; matching, normalization, resolution, scoring and review modules are untouched.
+- Source workbook hashes unchanged; no private inputs or generated evidence committed.
+- Synthetic deliverable: `.local/report-redesign/sample-six-sheet.xlsx`; reproduce
+  with `scripts/make_report_example.py --output <new-path.xlsx>`.
+- Excel desktop rendering remains unverified on this Linux machine; workbook structure,
+  style metadata, rich text, metric values and browser downloads have been verified.
+- Implementation is on `feature/excel-report-redesign`; open PR for review. **Do not
+  auto-merge.** No scientific owner decision or implementation blocker is outstanding.
+
+Next action: human review of the focused PR and sample workbook; merge only on request.
+
+
+## 18. CI diagnosis and final integration — IN_PROGRESS
+
+User explicitly requested handling all old/new merges on November 25, superseding
+section 17's previous no-auto-merge instruction. PR #8 is the sole open PR; all
+earlier PRs are merged. Both supplied private workbooks are still available.
+
+New network allowlist grants verified active; original failed job log downloaded
+privately. The failure was `test_optional_pool_kd_run_review_and_reload` on its
+second upload after `page.reload()`: optional-field expander locator timed out.
+The first evaluation, field review, Excel download and undo had already passed.
+This identifies a test synchronization failure at reconfiguration, not a reproduced
+evaluation-engine/Excel failure. Exact originating browser/server state was not
+captured, so its deeper trigger cannot be proven from that log alone.
+
+Added explicit upload HTTP success, uploaded filename and Run/configuration readiness
+assertions before optional controls. No timeout increase or blind whole-test retry.
+Corrected an obsolete dashboard caption claiming Pool/Kd were not yet available.
+Matching, normalization, scoring and review implementations remain untouched.
+Focused checks and full suite with supplied real-input paths pending, followed by
+current-head GitHub checks, standard PR merge and branch-ancestry verification.
+
+### Final verification and merge authorization — VERIFIED
+
+The latest user explicitly authorized handling all old/new merges and asked for the
+uploaded-file tests. This supersedes the previous no-auto-merge handoff. PR #8 is the
+only outstanding PR; older PR/feature changes are already represented in main.
+No outstanding review comments/review requests were found on PR #8.
+
+- Recovered original CI job `139485869910` after network grants: timeout occurred on
+  the second upload/configuration following browser reload, before clicking optional
+  Pool/Kd controls. The first evaluation, report download, review undo and backup had
+  succeeded. This log does not show a sequence evaluator or Excel-generation freeze.
+- Focused synchronized upload/reload browser workflow: **1 passed in 20.37s**.
+- Full Python 3.12 suite with the two supplied workbook paths explicitly enabled:
+  `APTABENCH_TEST_GOLD=<uploaded gold> APTABENCH_TEST_EXTRACTOR=<uploaded extractor>
+  .venv/bin/python -m pytest -q --basetemp .local/report-redesign/merge-final-tests`
+  → **85 passed in 136.29s**, no failures/skips. This includes synthetic unit cases
+  and dedicated real-input engine/browser tests; it does not substitute the private
+  files for synthetic fixtures whose specific edits/ambiguities are under test.
+- Real tests cover all four field modes, six-sheet downloads, scoring/review report
+  invalidation, review resume/import/undo, stable associations and cached reruns.
+- Uploaded workbook fingerprint prefixes still match `a015e5b896c2` / `6986787019d5`;
+  private files, reports, logs and biological evidence remain ignored/uncommitted.
+- Only the browser test synchronization, dashboard caption and progress record changed
+  in this follow-up. No scientific engine/Pool/Kd/review implementation changes.
+
+Next: wait for the new head's GitHub checks, merge PR #8 through normal GitHub policy
+without admin/force overrides, verify every published branch/PR head is included in
+main, and verify main's post-merge check. Final provider check results and merge SHA
+are available at https://github.com/vajrala-abhinav/AptaBench-Lite/pull/8 .
+Native Microsoft Excel desktop rendering remains unavailable; file structure/styles,
+values, rich text and actual browser downloads have been verified.

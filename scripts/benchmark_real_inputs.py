@@ -190,7 +190,7 @@ def benchmark(gold,extractor,output,repeats=2,legacy_timeout=.25):
                 report=export_workbook(restored,metrics,field_data=data,field_events=events)
                 check(align.cache_info().misses==before_dp,'no export realignment')
             book=load_workbook(BytesIO(report),read_only=True)
-            check(book.sheetnames==['Simple Summary','Debug Log','Logistics'],'three Excel sheets');book.close()
+            check(book.sheetnames==['Simple Summary','Per-Paper Results','Matched Pairs','Debug Log','Logistics & Review','Record Inventory'],'six Excel sheets');book.close()
             if name=='pool_kd':(output/'evaluation.xlsx').write_bytes(report)
             durations=lambda stage:capture.stages.get(stage,{}).get('seconds',0)
             rows.append({'repetition':repetition,'mode':name,'total_s':perf_counter()-start,
