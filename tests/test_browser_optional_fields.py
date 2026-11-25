@@ -77,6 +77,7 @@ def test_optional_pool_kd_run_review_and_reload(tmp_path):
             assert audit['optional_fields']['automatic_results']['kd']['T']==2
             assert audit['optional_fields']['effective_results']['kd']['T']==1
             assert len(audit['optional_fields']['review_events'])==1
+            page.get_by_role('button',name='Prepare Excel report',exact=True).click();idle()
             with page.expect_download() as download:page.get_by_role('button',name='Download Excel report',exact=True).click()
             report=tmp_path/'report.xlsx';download.value.save_as(report)
             assert load_workbook(report).sheetnames==['Simple Summary','Debug Log','Logistics']

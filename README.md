@@ -243,3 +243,42 @@ the platform-specific Streamlit command above. If Ctrl+C cannot stop the process
 terminate only the Python process running this Streamlit app using your operating
 system's process manager. Do not delete `.local/reviews`: existing review backups
 are preserved. An existing process must restart to load the fix.
+
+
+## Private-data performance troubleshooting
+
+The full research workbooks are **never** stored in Git. Keep all locally supplied
+`gold.xlsx` and `extractor.xlsx` files under the ignored `inputs/` directory,
+outside `examples/` and `tests/fixtures/` (which intentionally contain tracked
+synthetic fixtures). The repository ignores `*.xlsx` except its two synthetic
+fixture directories. Do not force-add private spreadsheets or paste their raw
+contents into issues, CI logs, or pull requests.
+
+The Pool/Kd performance fix replaces a potentially exponential-time regular
+expression in pool-template validation with a linear-time tokenization pattern.
+This is a performance/security hardening change, not a relaxation of the
+scientific matching rules.
+
+Excel reports are now prepared **only** when **Prepare Excel report** is clicked.
+After a manual review action or scoring option change, prepare again before
+downloading. This avoids reconstructing large alignment-rich workbooks during
+every Streamlit interaction.
+
+To validate a hang on real inputs, compare sequence-only / +Pool / +Kd /
++Pool+Kd wall times and isolate workbook reading, sequence evaluation, field
+normalization, review restoration, dashboard rendering, and report generation.
+Record only aggregate counts and durations. Do not upload the underlying
+research datasets to GitHub.
+
+
+To verify a reported hang using only explicitly supplied private workbooks:
+
+```bash
+.venv/bin/python scripts/verify_supplied_workbooks.py --gold inputs/gold.xlsx --extractor inputs/extractor.xlsx --output-dir .local/supplied-verification
+APTABENCH_TEST_GOLD=/absolute/path/gold.xlsx APTABENCH_TEST_EXTRACTOR=/absolute/path/extractor.xlsx .venv/bin/python -m pytest -q tests/test_uploaded_workbooks.py
+```
+
+These integration checks have no example-workbook fallback. They exercise all
+four field configurations, private report exports, review roundtrips and actual
+browser reloads without rewriting source files. Input paths must be supplied;
+outputs remain local. Prepare Excel explicitly after a scoring/review change.

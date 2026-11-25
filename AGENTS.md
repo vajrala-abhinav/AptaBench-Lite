@@ -19,7 +19,8 @@ The extracted text and three figures in docs/ preserve its full 25 sections and 
   Underspecified identity cases abstain with reasons (§24); policy changes need version/test/research review.
 
 ## Workflow and privacy
-Work only in AptaBench-Lite on an implementation branch; never merge main or modify siblings.
+Work only in AptaBench-Lite; do not modify sibling repositories.
+Use an implementation branch unless the user explicitly authorizes integration into main.
 Do not import sibling packages at runtime. Reference implementations may be read for regression evidence.
 Use this existing isolated checkout; no worktree unless requested. Do not deploy publicly.
 Keep private inputs, .venv and generated outputs untracked; never overwrite source workbooks.
