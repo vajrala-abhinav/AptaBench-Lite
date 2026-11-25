@@ -228,3 +228,28 @@ review backup, with identical workbooks and mappings.
 
 This feature branch needs verification on actual gold and extractor workbook schemas.
 It remains a local, single-user review app; not a shared authenticated service.
+
+## Private-data performance troubleshooting
+
+The full research workbooks are **never** stored in Git. Keep all locally supplied
+`gold.xlsx` and `extractor.xlsx` files under the ignored `inputs/` directory,
+outside `examples/` and `tests/fixtures/` (which intentionally contain tracked
+synthetic fixtures). The repository ignores `*.xlsx` except its two synthetic
+fixture directories. Do not force-add private spreadsheets or paste their raw
+contents into issues, CI logs, or pull requests.
+
+The Pool/Kd performance fix replaces a potentially exponential-time regular
+expression in pool-template validation with a linear-time tokenization pattern.
+This is a performance/security hardening change, not a relaxation of the
+scientific matching rules.
+
+Excel reports are now prepared **only** when **Prepare Excel report** is clicked.
+After a manual review action or scoring option change, prepare again before
+downloading. This avoids reconstructing large alignment-rich workbooks during
+every Streamlit interaction.
+
+To validate a hang on real inputs, compare sequence-only / +Pool / +Kd /
++Pool+Kd wall times and isolate workbook reading, sequence evaluation, field
+normalization, review restoration, dashboard rendering, and report generation.
+Record only aggregate counts and durations. Do not upload the underlying
+research datasets to GitHub.
