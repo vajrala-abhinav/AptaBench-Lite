@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import tempfile
+from .performance import timed
 from .models import ReviewedRun,ReviewEvent,Association,base_run
 
 ACTIONS={'CONFIRM_ASSOCIATION','REJECT_PAIR','MARK_GOLD_MISSING','LEAVE_UNRESOLVED','REASSIGN','UNDO'}
@@ -81,6 +82,7 @@ def export_review(value):
     return canonical({'payload':payload,'sha256':sha256(canonical(payload)).hexdigest()})
 
 
+@timed("sequence_review_restore")
 def import_review(run,data):
     if len(data)>10*1024*1024:raise ValueError('Review file exceeds 10 MiB')
     try:

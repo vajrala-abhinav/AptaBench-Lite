@@ -9,6 +9,7 @@ import platform
 import subprocess
 from pathlib import Path
 from time import perf_counter
+from .performance import timed
 from . import POLICY_VERSION,__version__
 from .alignment import align,budget
 from .config import RunConfig
@@ -20,6 +21,7 @@ from .normalization import name_key
 from .models import EvaluationRun,Paper,Decision,Diagnostic
 
 
+@timed("sequence_evaluation")
 def evaluate(gold_file,extractor_file,config=None):
     config=config or RunConfig()
     if isinstance(config,dict):config=RunConfig(**config)

@@ -5,6 +5,7 @@ tracks ALL minimum-distance intervals, independent of chosen display traceback.
 from functools import lru_cache
 from math import isqrt
 from .models import Trace
+from .performance import timed
 
 
 def budget(length):
@@ -13,6 +14,7 @@ def budget(length):
 
 
 @lru_cache(maxsize=8192)
+@timed("sequence_alignment")
 def align(gold: str, extractor: str, mode="core") -> Trace:
     if not gold or not extractor:raise ValueError("Alignment requires nonempty canonical sequences")
     if mode not in ("core","whole"):raise ValueError("Unknown alignment mode")
