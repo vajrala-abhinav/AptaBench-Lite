@@ -75,7 +75,7 @@ def configure(gb,eb,gname,ename):
         en=choose('Sequence-row aptamer name (simple tables only)',eh,['name','aptamer_name'],'en',True)
         notes=choose('Sequence-row notes (simple tables only)',eh,['notes'],'notes',True)
         seqkey=st.text_input('Sequence key inside structured items','sequence',key='seqkey')
-        st.caption('Names in independent aptamer_name sheets are paper context only. They are never paired by list position. Pool and Kd scoring await separate specifications.')
+        st.caption('Names in independent aptamer_name sheets are paper context only. They are never paired by list position. Pool and Kd can be evaluated independently using the optional controls below.')
     with st.expander('Advanced batch scope and filename aliases'):
         attempted=st.text_area('Additional processed paper keys (one per line)',key='attempted')
         suffixes=st.text_input('Known artifact suffixes to remove (comma separated)',key='suffixes')

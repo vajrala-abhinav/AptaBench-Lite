@@ -41,8 +41,20 @@ def test_optional_pool_kd_run_review_and_reload(tmp_path):
             page=browser.new_page(viewport={'width':1500,'height':1000});page.set_default_timeout(15000)
             def idle():expect(page.get_by_test_id('stApp')).to_have_attribute('data-test-script-state','notRunning')
             def configure():
+                # A reload starts a new Streamlit session. Wait for its upload
+                # responses and rendered configuration before touching controls;
+                # assigning both files against a changing uploader DOM races reruns.
                 inputs=page.get_by_test_id('stFileUploader').locator('input[type=file]')
-                inputs.nth(0).set_input_files(str(gold));inputs.nth(1).set_input_files(str(extractor))
+                expect(inputs).to_have_count(2);idle()
+                for index,path in enumerate((gold,extractor)):
+                    with page.expect_response(lambda response:
+                            '/_stcore/upload_file/' in response.url
+                            and response.request.method in ('POST','PUT')) as uploaded:
+                        inputs.nth(index).set_input_files(str(path))
+                    assert uploaded.value.ok, 'Workbook upload failed'
+                    expect(page.get_by_test_id('stFileUploader').nth(index).get_by_text(path.name,exact=True)).to_be_visible()
+                    idle()
+                expect(page.get_by_role('button',name='Run evaluation',exact=True)).to_be_visible();idle()
                 page.get_by_text('Optional Pool and Kd evaluation',exact=True).click()
                 page.get_by_text('Evaluate pool',exact=True).click()
                 expect(page.get_by_text('Gold pool template',exact=True)).to_be_visible();idle()

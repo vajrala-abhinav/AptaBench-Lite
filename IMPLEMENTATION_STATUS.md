@@ -506,3 +506,57 @@ rerun: **1 passed in 5.62s**. Final focused export/field/UI tests: **29 passed i
   auto-merge.** No scientific owner decision or implementation blocker is outstanding.
 
 Next action: human review of the focused PR and sample workbook; merge only on request.
+
+
+## 18. CI diagnosis and final integration — IN_PROGRESS
+
+User explicitly requested handling all old/new merges on November 25, superseding
+section 17's previous no-auto-merge instruction. PR #8 is the sole open PR; all
+earlier PRs are merged. Both supplied private workbooks are still available.
+
+New network allowlist grants verified active; original failed job log downloaded
+privately. The failure was `test_optional_pool_kd_run_review_and_reload` on its
+second upload after `page.reload()`: optional-field expander locator timed out.
+The first evaluation, field review, Excel download and undo had already passed.
+This identifies a test synchronization failure at reconfiguration, not a reproduced
+evaluation-engine/Excel failure. Exact originating browser/server state was not
+captured, so its deeper trigger cannot be proven from that log alone.
+
+Added explicit upload HTTP success, uploaded filename and Run/configuration readiness
+assertions before optional controls. No timeout increase or blind whole-test retry.
+Corrected an obsolete dashboard caption claiming Pool/Kd were not yet available.
+Matching, normalization, scoring and review implementations remain untouched.
+Focused checks and full suite with supplied real-input paths pending, followed by
+current-head GitHub checks, standard PR merge and branch-ancestry verification.
+
+### Final verification and merge authorization — VERIFIED
+
+The latest user explicitly authorized handling all old/new merges and asked for the
+uploaded-file tests. This supersedes the previous no-auto-merge handoff. PR #8 is the
+only outstanding PR; older PR/feature changes are already represented in main.
+No outstanding review comments/review requests were found on PR #8.
+
+- Recovered original CI job `139485869910` after network grants: timeout occurred on
+  the second upload/configuration following browser reload, before clicking optional
+  Pool/Kd controls. The first evaluation, report download, review undo and backup had
+  succeeded. This log does not show a sequence evaluator or Excel-generation freeze.
+- Focused synchronized upload/reload browser workflow: **1 passed in 20.37s**.
+- Full Python 3.12 suite with the two supplied workbook paths explicitly enabled:
+  `APTABENCH_TEST_GOLD=<uploaded gold> APTABENCH_TEST_EXTRACTOR=<uploaded extractor>
+  .venv/bin/python -m pytest -q --basetemp .local/report-redesign/merge-final-tests`
+  → **85 passed in 136.29s**, no failures/skips. This includes synthetic unit cases
+  and dedicated real-input engine/browser tests; it does not substitute the private
+  files for synthetic fixtures whose specific edits/ambiguities are under test.
+- Real tests cover all four field modes, six-sheet downloads, scoring/review report
+  invalidation, review resume/import/undo, stable associations and cached reruns.
+- Uploaded workbook fingerprint prefixes still match `a015e5b896c2` / `6986787019d5`;
+  private files, reports, logs and biological evidence remain ignored/uncommitted.
+- Only the browser test synchronization, dashboard caption and progress record changed
+  in this follow-up. No scientific engine/Pool/Kd/review implementation changes.
+
+Next: wait for the new head's GitHub checks, merge PR #8 through normal GitHub policy
+without admin/force overrides, verify every published branch/PR head is included in
+main, and verify main's post-merge check. Final provider check results and merge SHA
+are available at https://github.com/vajrala-abhinav/AptaBench-Lite/pull/8 .
+Native Microsoft Excel desktop rendering remains unavailable; file structure/styles,
+values, rich text and actual browser downloads have been verified.
