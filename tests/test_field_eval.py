@@ -82,3 +82,20 @@ def test_kd_multiple_unnamed_predictions_remain_ambiguous():
     assert new["kd"]["M"]==1 and new["kd"]["pending"]==1
     with pytest.raises(ValueError,match="already assigned"):
         append(data,events,"confirm","PI","kd","kd:G2",e)
+
+
+def test_pool_normalization_rejects_long_invalid_input_quickly():
+    """A malformed pool must never trigger exponential regex backtracking."""
+    from time import perf_counter
+    # Invalid terminal punctuation after long nucleotide sequences previously
+    # caused unbounded catastrophic regex backtracking.
+    bad = "ACGT" * 120 + "!"
+    start = perf_counter()
+    assert normalized_pool(bad) is None
+    assert perf_counter() - start < 1.0
+    assert normalized_pool("ACGT[N40]GGTT") == "ACGTN40GGTT"
+
+
+def test_pool_parser_preserves_valid_repeated_bases():
+    assert normalized_pool("A" * 300) == "A" * 300
+    assert normalized_pool("5′-ACGT-[N40]-GTCA-3′") == "ACGTN40GTCA"
