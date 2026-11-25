@@ -64,6 +64,7 @@ def test_browser_upload_review_export(tmp_path):
             audit=json.loads(file.read_text());m=audit['selected_metrics']
             assert (m['M'],m['T'],m['matched_correctness'])==(4,3,.75)
             assert len(audit['run']['automatic'])==3 and len(audit['effective_associations'])==4
+            page.get_by_role('button',name='Prepare Excel report',exact=True).click();idle()
             with page.expect_download() as download:page.get_by_role('button',name='Download Excel report',exact=True).click()
             download.value.save_as(tmp_path/'evaluation.xlsx')
             from openpyxl import load_workbook

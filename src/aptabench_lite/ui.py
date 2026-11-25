@@ -410,15 +410,37 @@ def main():
         )
         st.caption('The download goes to the browser default folder, or a location your browser asks you to choose. This app cannot specify a local client-side folder.')
     try:
-        if include_report:
-            st.download_button(
-                'Download Excel report',
-                export_workbook(value, metrics, sheets=report_sheets, field_data=extra_data, field_events=st.session_state.get('field-review-events',[])) if report_sheets else b'',
-                'aptabench-evaluation.xlsx',
-                mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-                disabled=not report_sheets,
-                key='download-xlsx',
-            )
+        if include_report and report_sheets:
+            # Streamlit evaluates the download_button data argument on every
+            # rerun. Preparing an expensive report only on explicit request
+            # avoids rebuilding all nucleotide-rich Excel rows while reviewing.
+            from hashlib import sha256
+            review_events = value.events if isinstance(value, ReviewedRun) else ()
+            field_events = st.session_state.get('field-review-events', [])
+            report_identity = sha256(repr((
+                run.run_id, review_events, field_events, metrics['population'],
+                metrics['tolerance'], metrics['sequence_scope'], tuple(report_sheets),
+                fields_fingerprint(extra_data) if extra_data is not None else None,
+            )).encode()).hexdigest()
+            if st.button('Prepare Excel report', key='prepare-xlsx'):
+                with st.spinner('Preparing the selected report once…'):
+                    st.session_state['prepared-xlsx'] = (
+                        report_identity,
+                        export_workbook(
+                            value, metrics, sheets=report_sheets,
+                            field_data=extra_data, field_events=field_events,
+                        ),
+                    )
+            prepared = st.session_state.get('prepared-xlsx')
+            if prepared and prepared[0] == report_identity:
+                st.download_button(
+                    'Download Excel report', prepared[1],
+                    'aptabench-evaluation.xlsx',
+                    mime='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    key='download-xlsx',
+                )
+            else:
+                st.caption('Prepare the report after finishing review; changes to review decisions or settings require a fresh report.')
         st.download_button('Download JSON audit',export_audit(value,metrics,field_data=extra_data,field_events=st.session_state.get('field-review-events',[])),'aptabench-audit.json',mime='application/json',key='download-audit')
         st.download_button('Download review state',export_review(value),'aptabench-review.json',mime='application/json',key='download-review')
         st.download_button('Download mapping configuration',cfg.to_json(),'aptabench-config.json',mime='application/json')

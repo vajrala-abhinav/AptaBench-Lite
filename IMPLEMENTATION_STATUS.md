@@ -275,3 +275,66 @@ Review/merge the repair branch, or run it directly, then stop/restart the Stream
 server. Closing only its browser tab does not stop an already-stuck Python process.
 The repaired loopback dashboard is started and health-checked in this workspace;
 this does not restart a server on the user's separate machine.
+
+## 14. PR #5 integration with explicitly supplied workbooks — November 25, 2026
+
+Status: **IMPLEMENTED_UNVERIFIED** for the final GitHub issue/PR review; local
+integration and supplied-file verification are **VERIFIED**. Main publication is
+pending access to the repository issue instructions requested by the user.
+
+User explicitly authorized merging branches to main, superseding the previous
+no-main-merge task restriction. Work was prepared on `integration/all-branches`
+from main `ea45628` and PR #5 head `65c801a` (`fix/pool-kd-performance-privacy`).
+Other published feature/fix/implementation heads were already included in main.
+
+Resolved actual conflicts in the workflow, README, Pool regex, UI and Pool tests:
+- Preserve main's finite-time validator and existing accepted token language.
+- Integrate PR #5's explicit **Prepare Excel report** action and state fingerprint
+  invalidation; do not build Excel on every ordinary UI rerun.
+- Retain the earlier review, attempted-population, field-audit and transactional
+  Run fixes. In particular, the new branch must not regress Pool/Kd JSON audit data.
+- Keep broad main/PR/fix CI coverage and add integration branches; preserve both
+  sets of regression tests. Existing synthetic fixtures were NOT used for this task.
+- Update the optional browser test for the newly explicit report-preparation step.
+
+### Supplied-file-only verification executed
+
+Only the user's uploaded `gold.xlsx` and `extractor.xlsx` were used. Exact private
+copies and their hashes remain under ignored `.local/user-inputs/`. No examples,
+sibling-repository workbooks or modified/manufactured workbooks were substituted.
+No private inputs or full evaluation outputs are staged.
+
+- A timeout-isolated reproduction of the old regex stalled on the uploaded gold
+  at source row 243; the subprocess was stopped after two seconds. This establishes
+  the freeze on the actual supplied input rather than only a synthetic pattern.
+- `scripts/verify_supplied_workbooks.py --gold ... --extractor ... --output-dir ...`
+  verified sequence-only, +Pool, +Kd and combined variants; fixed association
+  invariance; exact count reconciliation; source-hash preservation; sequence/field
+  review save/import/undo; readable Excel and matching JSON audit.
+- `APTABENCH_TEST_GOLD=<uploaded gold> APTABENCH_TEST_EXTRACTOR=<uploaded extractor>
+  .venv/bin/python -m pytest -q tests/test_uploaded_workbooks.py --basetemp .local/uploaded-tests`:
+  **2 passed in 36.75s**. The second test used actual Chromium uploads and live
+  Streamlit, all four field configurations, on-demand preparation/download,
+  invalidation after scoring/review changes, field action/undo, and page reload.
+- Browser observed Run times: sequence 5.229s cold; Pool 0.823s; Kd 0.767s; combined
+  0.778s (warm sequence cache reused). Explicit report prepare/download: 1.461s.
+  These are measurements on this environment, not promised runtimes.
+- Both uploaded source hashes remained unchanged. Detailed private evidence:
+  `.local/supplied-verification/` and `.local/uploaded-tests/`.
+- Existing synthetic-workbook test suite was deliberately not executed, per the
+  user's instruction to use only the two supplied files for testing/reproduction.
+  Historical suite results elsewhere in this file do not describe this integration.
+
+### External blocker / required next action
+
+Native authenticated Git fetch/push works, but the environment rejects CONNECT
+requests to `api.github.com` with HTTP 403. GitHub CLI issue/PR reads therefore fail.
+Private github.com issue/PR HTML returns 404 without the API's authentication route.
+The issue instructions themselves have not been read; no claim that issues are
+resolved or required GitHub review/checks were inspected is made.
+
+The user was asked to paste the issue instructions or allow `api.github.com` in
+running environment settings. Once available, read those instructions and PR #5,
+complete any required work, recheck current branch tips, then promote the verified
+integration to main and confirm all remote branch heads are ancestors. No force
+push, branch deletion or public app deployment is intended.
