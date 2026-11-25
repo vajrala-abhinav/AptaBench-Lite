@@ -3,6 +3,7 @@ from dataclasses import asdict
 from io import BytesIO
 import json
 import xlsxwriter
+from .performance import timed
 from .models import base_run,associations,ReviewedRun
 from .scoring import compute_metrics,paper_status,CAVEAT
 from .presentation import COLORS
@@ -39,6 +40,7 @@ def export_audit(value,metrics=None,field_data=None,field_events=()):
 REPORT_SHEETS = ("Simple Summary", "Debug Log", "Logistics")
 
 
+@timed("excel_export")
 def export_workbook(value, metrics=None, sheets=None, field_data=None, field_events=()):
     """Three-tab human-readable report. The JSON audit retains the complete machine record.
 

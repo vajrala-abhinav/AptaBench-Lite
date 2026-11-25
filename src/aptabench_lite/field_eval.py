@@ -13,6 +13,7 @@ from hashlib import sha256
 import json
 import re
 
+from .performance import timed
 from .models import base_run
 from .normalization import name_key
 from .readers import rows, parse_items, alias, raw_json
@@ -50,6 +51,7 @@ def _text(value):
     return str(value).strip() if value is not None else ""
 
 
+@timed("pool_normalization")
 def normalized_pool(raw):
     value = _text(raw).upper()
     if not value:
@@ -78,6 +80,7 @@ def pool_type(raw):
     return None
 
 
+@timed("kd_normalization")
 def kd_nm(amount, unit):
     """Parse a single leading numeric Kd; reject censored/range measurements.
 
@@ -155,6 +158,7 @@ def _extract(run, data, sheet, key_col, value_col, kind, evidence_col=""):
     return output, diagnostics
 
 
+@timed("optional_field_loading")
 def load_fields(run, gold_bytes, extractor_bytes, config: FieldConfig):
     """Build field inventories once. No fuzzy paper linking or index-paired names."""
     gold = {"pool": [], "kd": []}
@@ -228,6 +232,7 @@ def _comparison(g, e):
             "relative_error_pct": float(delta / a * Decimal("100"))}
 
 
+@timed("field_scoring")
 def field_results(data, actions=()):
     """Return per-field gold outcomes and closed-world metrics.
 

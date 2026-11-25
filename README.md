@@ -282,3 +282,18 @@ These integration checks have no example-workbook fallback. They exercise all
 four field configurations, private report exports, review roundtrips and actual
 browser reloads without rewriting source files. Input paths must be supplied;
 outputs remain local. Prepare Excel explicitly after a scoring/review change.
+
+
+### Full-input performance verification
+
+See [the anonymized benchmark](docs/performance-benchmark.md) for phased timings,
+cache verification and the bounded pre-fix reproduction on the supplied full inputs.
+The optional Pool/Kd parse cache reuses source bytes and mapping/run identities;
+review decisions are restored separately. The Run spinner now identifies sequence
+computation, optional-field loading and review restoration as separate phases.
+Normal score/review reruns do not read workbooks or run sequence alignment, and
+Excel remains an explicit **Prepare Excel report** action.
+
+`benchmark_real_inputs.py` requires explicit private paths and never falls back to
+examples. Optional live tracing is disabled unless `APTABENCH_PERFORMANCE_LOG` is
+set; trace files contain timing/count metadata only and belong under `.local/`.

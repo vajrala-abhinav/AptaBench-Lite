@@ -1,7 +1,9 @@
 # AptaBench Lite implementation status
 
 Overall: **VERIFIED** for the standalone local sequence application on Python 3.12/Linux.
-Current repair branch: `fix/dashboard-merged-regressions`, based on merged main `2c2415b`.
+Current reviewed integration: PR #5, prepared on `integration/latest-pull-requests`.
+The latest user request authorizes handling and merging the reviewed pull requests.
+Historical task sections below retain their then-current approvals and blockers.
 No main-branch merge or public deployment was performed by this repair task.
 Current dashboard validation: **70 tests passed**, including sequence and optional Pool/Kd browser flows.
 Sections 1–12 preserve historical implementation evidence; section 13 records the current repair.
@@ -338,3 +340,108 @@ running environment settings. Once available, read those instructions and PR #5,
 complete any required work, recheck current branch tips, then promote the verified
 integration to main and confirm all remote branch heads are ancestors. No force
 push, branch deletion or public app deployment is intended.
+
+
+## 15. Full real-input Pool/Kd profiling (historical branch verification) — November 25, 2026
+
+Current work: `fix/pool-kd-performance-privacy`, based on `65c801a`.
+Status: **VERIFIED** locally for performance, repeatability and UI behavior. No merge
+was performed; latest user instruction explicitly requires approval before merging.
+The earlier integration branch is separate and has not been promoted by this task.
+
+Full input availability was confirmed from the existing user uploads: preview exactly
+248 gold rows, 116 significant records, 6,309 significant bases, 44 attempted linked
+papers and 308 raw sequence items. No replacement extractor was requested or needed.
+Only this pair was used for real-data reproduction/benchmarks. Normal unit fixtures
+remain synthetic as requested by the complete regression-suite requirement.
+
+Completed:
+- Preserved the preliminary safe validator and on-demand Excel implementation.
+- Bounded legacy-regex probe reproduced the freeze on the supplied gold after imports
+  and reading completed; killed after 250ms. Safe scan of all 243 nonblank Pool values:
+  1.70ms, >147x below the canceled lower bound. Preliminary count 245 was not reproduced;
+  this supplied workbook has 243 nonblank and three whitespace-only non-null Pool cells.
+- A second bounded old-validator probe inside actual load_fields timed out after
+  sequence finished and before Excel started, confirming spinner-stage attribution.
+- Two cold runs of each of four modes profiled XML parsing, sequence computation,
+  Pool/Kd normalization, real-file review restoration, scoring and Excel export.
+- Opt-in context-local instrumentation records only call counts and durations. New
+  alignment counts measure cache misses, not calls that reuse an existing trace.
+- Optional field ingestion cached by input bytes, run ID and mappings; review restoration
+  stays live. Repeated Run, score toggles, exports and resume had zero input parse/alignment.
+- Separate sequence / optional field / review-restore spinners make the original stall
+  attributable to Pool normalization in load_fields, not to Excel outside that spinner.
+- UI publishes state only after all Run stages succeed; prepared reports invalidate on
+  scoring/review changes. All three sheets, review backup import/resume/undo checked.
+- Scientific-output hashes match starting commit 65c801a for all four modes and eight
+  sequence views. No metric/association/tolerance/one-to-one change was introduced.
+
+Actual checks:
+- Initial full suite: 59 passed in 15.52s.
+- Focused engine/reader/normalization/field/UI suite during implementation: 39 passed.
+- Full Python 3.12 suite with supplied-input variables: **63 passed in 44.87s**, no skips.
+- Latest default-off tracing/privacy focused checks: 3 passed in 1.35s; real cache check
+  1 passed in 4.16s. Browser synchronization was corrected to wait for a completed
+  post-action render/revision, avoiding downloading stale pre-undo widget data.
+- Scientific baseline comparison: all four modes / all eight sequence views equal.
+- Cold benchmark: two repetitions per mode, scientific repeatability verified; source
+  hashes unchanged. Detailed anonymized table: docs/performance-benchmark.md.
+- `pip check`: no broken requirements; no new dependencies. `git diff --check`: clean.
+
+Private evidence (ignored; never commit): `.local/performance-final-benchmark/`,
+`.local/performance-final-suite/`, scientific comparison and local review snapshots.
+The committed benchmark document contains only aggregate timings/counts and truncated
+fingerprints. No workbooks, raw biological strings, JSON evidence or credentials staged.
+
+Published: performance code commit `cc4e1c8` is pushed to
+`fix/pool-kd-performance-privacy`; working tree is clean. Main remains `ea45628`.
+`gh pr create --base feature/practical-review-pool-kd --head fix/pool-kd-performance-privacy`
+failed because `https://api.github.com/graphql` returns Forbidden in this environment.
+No new PR was created. The complete focused description is in ignored
+`.local/performance-pr.md`; the review/creation URL is:
+https://github.com/vajrala-abhinav/AptaBench-Lite/compare/feature/practical-review-pool-kd...fix/pool-kd-performance-privacy?expand=1
+
+Remaining external blocker: permit GitHub API access or create that focused PR from
+the compare page. Implementation and local verification are complete. Remote CI and
+native Windows/macOS are not claimed verified. No merge was performed; do not auto-merge.
+
+
+## 16. Final reviewed PR integration — November 25, 2026
+
+Local integration: **VERIFIED**. Target: PR #5 into main.
+Starting main `242cfa1` already includes PR #7 (`integration/all-branches`).
+Feature tip `6fe2255` includes PR #6 and performance tip `5b6f5a0`; these are the
+remaining changes not yet represented in starting main. Prior no-auto-merge task
+instructions are superseded by the user's explicit request to handle all PRs/merges.
+
+Resolved the real conflicts between main and the updated feature tip:
+- Keep earlier dashboard, attempted-population, review integrity and complete field
+  JSON/Excel audit fixes from main.
+- Integrate cached optional ingestion, opt-in privacy-safe timing instrumentation,
+  distinct Run phases and explicit/stale-safe Excel preparation.
+- Preserve both branches' documentation and verification history. No scientific
+  normalization/association/tolerance changes introduced by conflict resolution.
+
+Executed combined validation:
+`APTABENCH_TEST_GOLD=<supplied gold> APTABENCH_TEST_EXTRACTOR=<supplied extractor>
+.venv/bin/python -m pytest -q --basetemp .local/final-integration-tests`:
+**78 passed in 97.80s**, including both original browser flows and both supplied-file
+integration/browser suites. Private evidence remains ignored under `.local/`.
+Independent signatures against starting main match for all four modes and eight
+scoring views, including source records, traces, decisions and field outcomes.
+`git diff --check`: clean. No private XLSX, raw biology or JSON evidence staged.
+
+GitHub API access was restored after the network allowlist update. Inspected all
+PRs and open issue #4. PR #5 was the sole open PR, with no review comments or
+outstanding formal review decision; PRs #6/#7 were already merged and checks green.
+Issue #4's real-data, schema, bounded freeze reproduction, privacy, cache, review,
+Excel and benchmark requirements were checked against the completed evidence.
+Branch-protection administration details are not readable by the connector; standard
+GitHub PR merging and its check/review policies remain authoritative.
+
+Workflow: push this resolved candidate to PR #5's existing head branch, wait for its
+current-head GitHub checks to pass, and merge via GitHub without admin overrides,
+force pushes or source-branch deletion. Final check results and merge SHA are recorded
+on https://github.com/vajrala-abhinav/AptaBench-Lite/pull/5 . All published branch and
+PR head SHAs are checked for ancestry in the resulting main, and no unrelated
+reference repository or source workbook is modified.
