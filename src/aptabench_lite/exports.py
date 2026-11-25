@@ -115,7 +115,6 @@ def export_workbook(value, metrics=None, sheets=None, field_data=None, field_eve
         ws.fit_to_pages(1, 0)
         ws.set_footer('&LAptaBench Lite | private research report&RPage &P of &N')
     table_index = 0
-    frozen = set()
 
     def safe(v):
         if isinstance(v, (dict, list, tuple)):
@@ -146,7 +145,7 @@ def export_workbook(value, metrics=None, sheets=None, field_data=None, field_eve
             table_index += 1
             ws.add_table(row+1, 0, row+1+len(rows), len(headers)-1,
                          {"name": f"ReportTable{table_index}", "columns": columns,
-                          "data": [[safe(v) for v in record] for record in rows], "style": "Table Style Medium 2"})
+                          "data": [[safe(v) for v in record] for record in rows], "style": None, "banded_rows": False, "banded_columns": False})
             for col, name in enumerate(headers):
                 if name in {"strict_core", "tolerant_core", "strict_whole", "tolerant_whole", "exact", "tolerant"}:
                     for val, style in ((True, pass_style), (False, fail_style)):
@@ -155,10 +154,6 @@ def export_workbook(value, metrics=None, sheets=None, field_data=None, field_eve
                 if "status" in name or name == "pending":
                     ws.conditional_format(row+2, col, row+1+len(rows), col,
                         {"type": "text", "criteria": "containing", "value": "REVIEW", "format": review_style})
-        if ws.name not in frozen:
-            ws.freeze_panes(row+2, 1)
-            ws.repeat_rows(row+1)
-            frozen.add(ws.name)
         return row+len(rows)+3
 
     def paragraph(ws, row, text, style=note, height=32):
