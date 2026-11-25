@@ -13,6 +13,9 @@ The extracted text and three figures in docs/ preserve its full 25 sections and 
 - review: immutable automatic result plus append-only validated events, explicit atomic reassignment,
   undo, fingerprinted durable replay (§§13–14). Human identity confirmation never overrides bases.
 - exports/UI: one result and stored traces, identical numerical values/color operations (§§15–18).
+- Excel presentation follows docs/excel-report-layout.md: six ordered sheets, compact overall
+  summary, effective accepted pairs, full candidate audit and separate inventories. Reporting
+  revisions must preserve numerical results, stored traces and on-demand cache invalidation.
 - Strict canonical extractor duplicates only; preserve raw IDs and identical-gold multiplicity.
   No row-order identity tie-break, fuzzy deletion, cross-paper matching, T/U conversion or RC TP.
 - Do not invent scientific heuristics, probabilities, margins or denominator definitions.

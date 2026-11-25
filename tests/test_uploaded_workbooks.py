@@ -70,7 +70,7 @@ def test_supplied_browser_variants_lazy_exports_review_and_reload(tmp_path):
                 with page.expect_download() as d:page.get_by_role('button',name='Download Excel report',exact=True).click()
                 path=tmp_path/name;d.value.save_as(path)
                 book=load_workbook(path,read_only=True)
-                assert book.sheetnames==['Simple Summary','Debug Log','Logistics'];book.close()
+                assert book.sheetnames==['Simple Summary','Per-Paper Results','Matched Pairs','Debug Log','Logistics & Review','Record Inventory'];book.close()
                 return time.perf_counter()-start
             def upload():
                 uploads=page.get_by_test_id('stFileUploader').locator('input[type=file]')

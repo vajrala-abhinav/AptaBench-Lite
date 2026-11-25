@@ -116,7 +116,7 @@ def test_full_input_browser_phase_timings_exports_and_review(tmp_path):
             expect(page.get_by_role('button',name='Download Excel report',exact=True)).to_be_visible();idle();no_input_work(prepared)
             with page.expect_download() as download:page.get_by_role('button',name='Download Excel report',exact=True).click()
             report=tmp_path/'evaluation.xlsx';download.value.save_as(report)
-            book=load_workbook(report,read_only=True);check(book.sheetnames==['Simple Summary','Debug Log','Logistics'],'three Excel sheets');book.close()
+            book=load_workbook(report,read_only=True);check(book.sheetnames==['Simple Summary','Per-Paper Results','Matched Pairs','Debug Log','Logistics & Review','Record Inventory'],'six Excel sheets');book.close()
             step='review';page.get_by_label('Field reviewer identity',exact=True).fill('VERIFICATION_ONLY')
             page.get_by_label('Field reviewer identity',exact=True).press('Enter');idle()
             review_start=len(rows())

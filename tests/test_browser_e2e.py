@@ -68,7 +68,7 @@ def test_browser_upload_review_export(tmp_path):
             with page.expect_download() as download:page.get_by_role('button',name='Download Excel report',exact=True).click()
             download.value.save_as(tmp_path/'evaluation.xlsx')
             from openpyxl import load_workbook
-            assert load_workbook(tmp_path/'evaluation.xlsx').sheetnames==['Simple Summary','Debug Log','Logistics']
+            assert load_workbook(tmp_path/'evaluation.xlsx').sheetnames==['Simple Summary','Per-Paper Results','Matched Pairs','Debug Log','Logistics & Review','Record Inventory']
             page.get_by_text('Core edits:',exact=False).scroll_into_view_if_needed()
             page.screenshot(path=str(tmp_path/'review.png'),full_page=True)
             (tmp_path/'browser-evidence.json').write_text(json.dumps({'score_toggle_rerun_s':rerun_s,'metrics':m,'uploaded_files':2,'automatic_links_preserved':True},indent=2))

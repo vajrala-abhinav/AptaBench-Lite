@@ -22,7 +22,7 @@ def test_actual_cli_independent_entrypoint(tmp_path):
     p=subprocess.run([sys.executable,'-I','-m','aptabench_lite.cli','--gold',str(ROOT/'examples/gold.xlsx'),'--extractor',str(ROOT/'examples/extractor.xlsx'),'--output-dir',str(out)],cwd=tmp_path,capture_output=True,text=True)
     assert p.returncode==0,p.stderr
     m=json.loads(p.stdout);assert (m['G'],m['E'],m['TP'],m['FP'],m['FN'])==(5,5,3,2,2)
-    assert load_workbook(out/'evaluation.xlsx').sheetnames==['Simple Summary','Debug Log','Logistics']
+    assert load_workbook(out/'evaluation.xlsx').sheetnames==['Simple Summary','Per-Paper Results','Matched Pairs','Debug Log','Logistics & Review','Record Inventory']
     audit=json.loads((out/'audit.json').read_text());assert audit['selected_metrics']==m
     # Restoring an empty review state uses the same fixed associations.
     replay=tmp_path/'replay'

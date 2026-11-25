@@ -1,0 +1,417 @@
+{
+  "source_commit": "d535472",
+  "effective_metrics": {
+    "all/strict/whole": {
+      "population": "all",
+      "tolerance": "strict",
+      "sequence_scope": "whole",
+      "review_mode": "effective",
+      "G": 3,
+      "E": 3,
+      "M": 3,
+      "T": 1,
+      "TP": 1,
+      "E_raw": 4,
+      "E_parseable_raw": 4,
+      "E_unique": 3,
+      "E_logical": 3,
+      "E_invalid": 0,
+      "multiplicity_exception_count": 0,
+      "FP": 2,
+      "FN": 2,
+      "precision": 0.3333333333333333,
+      "recall": 0.3333333333333333,
+      "f1": 0.3333333333333333,
+      "matched_correctness": 0.3333333333333333,
+      "significant_recovery": 0.3333333333333333,
+      "pending_gold": 0,
+      "unverified_extractor": 0,
+      "significant_unscoreable": 1,
+      "significant_all": 4,
+      "unattempted_papers": 0,
+      "attempted_papers": 1,
+      "passing_gold_ids": [
+        "a"
+      ],
+      "n_raw_extractor": 4,
+      "duplicate_suppressed": 1,
+      "numerators": {
+        "precision": [
+          1,
+          3
+        ],
+        "recall": [
+          1,
+          3
+        ],
+        "f1": [
+          2,
+          6
+        ]
+      },
+      "provisional": false,
+      "notes": "All sequences (closed-world): This score checks every unique extractor prediction against the significant gold reference only. Extractors can report more sequences than the significant gold set contains, including legitimate sequences outside this reference. Those additional predictions lower closed-world precision and F1 by design; they are not independently verified biological false positives. Unresolved manual-review candidates count as unconfirmed recoveries until adjudicated."
+    },
+    "all/strict/core": {
+      "population": "all",
+      "tolerance": "strict",
+      "sequence_scope": "core",
+      "review_mode": "effective",
+      "G": 3,
+      "E": 3,
+      "M": 3,
+      "T": 2,
+      "TP": 2,
+      "E_raw": 4,
+      "E_parseable_raw": 4,
+      "E_unique": 3,
+      "E_logical": 3,
+      "E_invalid": 0,
+      "multiplicity_exception_count": 0,
+      "FP": 1,
+      "FN": 1,
+      "precision": 0.6666666666666666,
+      "recall": 0.6666666666666666,
+      "f1": 0.6666666666666666,
+      "matched_correctness": 0.6666666666666666,
+      "significant_recovery": 0.6666666666666666,
+      "pending_gold": 0,
+      "unverified_extractor": 0,
+      "significant_unscoreable": 1,
+      "significant_all": 4,
+      "unattempted_papers": 0,
+      "attempted_papers": 1,
+      "passing_gold_ids": [
+        "a",
+        "b"
+      ],
+      "n_raw_extractor": 4,
+      "duplicate_suppressed": 1,
+      "numerators": {
+        "precision": [
+          2,
+          3
+        ],
+        "recall": [
+          2,
+          3
+        ],
+        "f1": [
+          4,
+          6
+        ]
+      },
+      "provisional": false,
+      "notes": "All sequences (closed-world): This score checks every unique extractor prediction against the significant gold reference only. Extractors can report more sequences than the significant gold set contains, including legitimate sequences outside this reference. Those additional predictions lower closed-world precision and F1 by design; they are not independently verified biological false positives. Unresolved manual-review candidates count as unconfirmed recoveries until adjudicated."
+    },
+    "all/adaptive/whole": {
+      "population": "all",
+      "tolerance": "adaptive",
+      "sequence_scope": "whole",
+      "review_mode": "effective",
+      "G": 3,
+      "E": 3,
+      "M": 3,
+      "T": 1,
+      "TP": 1,
+      "E_raw": 4,
+      "E_parseable_raw": 4,
+      "E_unique": 3,
+      "E_logical": 3,
+      "E_invalid": 0,
+      "multiplicity_exception_count": 0,
+      "FP": 2,
+      "FN": 2,
+      "precision": 0.3333333333333333,
+      "recall": 0.3333333333333333,
+      "f1": 0.3333333333333333,
+      "matched_correctness": 0.3333333333333333,
+      "significant_recovery": 0.3333333333333333,
+      "pending_gold": 0,
+      "unverified_extractor": 0,
+      "significant_unscoreable": 1,
+      "significant_all": 4,
+      "unattempted_papers": 0,
+      "attempted_papers": 1,
+      "passing_gold_ids": [
+        "a"
+      ],
+      "n_raw_extractor": 4,
+      "duplicate_suppressed": 1,
+      "numerators": {
+        "precision": [
+          1,
+          3
+        ],
+        "recall": [
+          1,
+          3
+        ],
+        "f1": [
+          2,
+          6
+        ]
+      },
+      "provisional": false,
+      "notes": "All sequences (closed-world): This score checks every unique extractor prediction against the significant gold reference only. Extractors can report more sequences than the significant gold set contains, including legitimate sequences outside this reference. Those additional predictions lower closed-world precision and F1 by design; they are not independently verified biological false positives. Unresolved manual-review candidates count as unconfirmed recoveries until adjudicated."
+    },
+    "all/adaptive/core": {
+      "population": "all",
+      "tolerance": "adaptive",
+      "sequence_scope": "core",
+      "review_mode": "effective",
+      "G": 3,
+      "E": 3,
+      "M": 3,
+      "T": 2,
+      "TP": 2,
+      "E_raw": 4,
+      "E_parseable_raw": 4,
+      "E_unique": 3,
+      "E_logical": 3,
+      "E_invalid": 0,
+      "multiplicity_exception_count": 0,
+      "FP": 1,
+      "FN": 1,
+      "precision": 0.6666666666666666,
+      "recall": 0.6666666666666666,
+      "f1": 0.6666666666666666,
+      "matched_correctness": 0.6666666666666666,
+      "significant_recovery": 0.6666666666666666,
+      "pending_gold": 0,
+      "unverified_extractor": 0,
+      "significant_unscoreable": 1,
+      "significant_all": 4,
+      "unattempted_papers": 0,
+      "attempted_papers": 1,
+      "passing_gold_ids": [
+        "a",
+        "b"
+      ],
+      "n_raw_extractor": 4,
+      "duplicate_suppressed": 1,
+      "numerators": {
+        "precision": [
+          2,
+          3
+        ],
+        "recall": [
+          2,
+          3
+        ],
+        "f1": [
+          4,
+          6
+        ]
+      },
+      "provisional": false,
+      "notes": "All sequences (closed-world): This score checks every unique extractor prediction against the significant gold reference only. Extractors can report more sequences than the significant gold set contains, including legitimate sequences outside this reference. Those additional predictions lower closed-world precision and F1 by design; they are not independently verified biological false positives. Unresolved manual-review candidates count as unconfirmed recoveries until adjudicated."
+    },
+    "matched/strict/whole": {
+      "population": "matched",
+      "tolerance": "strict",
+      "sequence_scope": "whole",
+      "review_mode": "effective",
+      "G": 3,
+      "E": 3,
+      "M": 3,
+      "T": 1,
+      "TP": 1,
+      "E_raw": 4,
+      "E_parseable_raw": 4,
+      "E_unique": 3,
+      "E_logical": 3,
+      "E_invalid": 0,
+      "multiplicity_exception_count": 0,
+      "FP": 2,
+      "FN": 2,
+      "precision": 0.3333333333333333,
+      "recall": 0.3333333333333333,
+      "f1": 0.3333333333333333,
+      "matched_correctness": 0.3333333333333333,
+      "significant_recovery": 0.3333333333333333,
+      "pending_gold": 0,
+      "unverified_extractor": 0,
+      "significant_unscoreable": 1,
+      "significant_all": 4,
+      "unattempted_papers": 0,
+      "attempted_papers": 1,
+      "passing_gold_ids": [
+        "a"
+      ],
+      "n_raw_extractor": 4,
+      "duplicate_suppressed": 1,
+      "numerators": {
+        "precision": [
+          1,
+          3
+        ],
+        "recall": [
+          1,
+          3
+        ],
+        "f1": [
+          1,
+          3
+        ]
+      },
+      "provisional": false,
+      "notes": "Conditional paired correctness; recovery is reported separately."
+    },
+    "matched/strict/core": {
+      "population": "matched",
+      "tolerance": "strict",
+      "sequence_scope": "core",
+      "review_mode": "effective",
+      "G": 3,
+      "E": 3,
+      "M": 3,
+      "T": 2,
+      "TP": 2,
+      "E_raw": 4,
+      "E_parseable_raw": 4,
+      "E_unique": 3,
+      "E_logical": 3,
+      "E_invalid": 0,
+      "multiplicity_exception_count": 0,
+      "FP": 1,
+      "FN": 1,
+      "precision": 0.6666666666666666,
+      "recall": 0.6666666666666666,
+      "f1": 0.6666666666666666,
+      "matched_correctness": 0.6666666666666666,
+      "significant_recovery": 0.6666666666666666,
+      "pending_gold": 0,
+      "unverified_extractor": 0,
+      "significant_unscoreable": 1,
+      "significant_all": 4,
+      "unattempted_papers": 0,
+      "attempted_papers": 1,
+      "passing_gold_ids": [
+        "a",
+        "b"
+      ],
+      "n_raw_extractor": 4,
+      "duplicate_suppressed": 1,
+      "numerators": {
+        "precision": [
+          2,
+          3
+        ],
+        "recall": [
+          2,
+          3
+        ],
+        "f1": [
+          2,
+          3
+        ]
+      },
+      "provisional": false,
+      "notes": "Conditional paired correctness; recovery is reported separately."
+    },
+    "matched/adaptive/whole": {
+      "population": "matched",
+      "tolerance": "adaptive",
+      "sequence_scope": "whole",
+      "review_mode": "effective",
+      "G": 3,
+      "E": 3,
+      "M": 3,
+      "T": 1,
+      "TP": 1,
+      "E_raw": 4,
+      "E_parseable_raw": 4,
+      "E_unique": 3,
+      "E_logical": 3,
+      "E_invalid": 0,
+      "multiplicity_exception_count": 0,
+      "FP": 2,
+      "FN": 2,
+      "precision": 0.3333333333333333,
+      "recall": 0.3333333333333333,
+      "f1": 0.3333333333333333,
+      "matched_correctness": 0.3333333333333333,
+      "significant_recovery": 0.3333333333333333,
+      "pending_gold": 0,
+      "unverified_extractor": 0,
+      "significant_unscoreable": 1,
+      "significant_all": 4,
+      "unattempted_papers": 0,
+      "attempted_papers": 1,
+      "passing_gold_ids": [
+        "a"
+      ],
+      "n_raw_extractor": 4,
+      "duplicate_suppressed": 1,
+      "numerators": {
+        "precision": [
+          1,
+          3
+        ],
+        "recall": [
+          1,
+          3
+        ],
+        "f1": [
+          1,
+          3
+        ]
+      },
+      "provisional": false,
+      "notes": "Conditional paired correctness; recovery is reported separately."
+    },
+    "matched/adaptive/core": {
+      "population": "matched",
+      "tolerance": "adaptive",
+      "sequence_scope": "core",
+      "review_mode": "effective",
+      "G": 3,
+      "E": 3,
+      "M": 3,
+      "T": 2,
+      "TP": 2,
+      "E_raw": 4,
+      "E_parseable_raw": 4,
+      "E_unique": 3,
+      "E_logical": 3,
+      "E_invalid": 0,
+      "multiplicity_exception_count": 0,
+      "FP": 1,
+      "FN": 1,
+      "precision": 0.6666666666666666,
+      "recall": 0.6666666666666666,
+      "f1": 0.6666666666666666,
+      "matched_correctness": 0.6666666666666666,
+      "significant_recovery": 0.6666666666666666,
+      "pending_gold": 0,
+      "unverified_extractor": 0,
+      "significant_unscoreable": 1,
+      "significant_all": 4,
+      "unattempted_papers": 0,
+      "attempted_papers": 1,
+      "passing_gold_ids": [
+        "a",
+        "b"
+      ],
+      "n_raw_extractor": 4,
+      "duplicate_suppressed": 1,
+      "numerators": {
+        "precision": [
+          2,
+          3
+        ],
+        "recall": [
+          2,
+          3
+        ],
+        "f1": [
+          2,
+          3
+        ]
+      },
+      "provisional": false,
+      "notes": "Conditional paired correctness; recovery is reported separately."
+    }
+  }
+}

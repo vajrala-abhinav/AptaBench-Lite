@@ -445,3 +445,41 @@ force pushes or source-branch deletion. Final check results and merge SHA are re
 on https://github.com/vajrala-abhinav/AptaBench-Lite/pull/5 . All published branch and
 PR head SHAs are checked for ancestry in the resulting main, and no unrelated
 reference repository or source workbook is modified.
+
+
+## 17. Excel report redesign — IN_PROGRESS
+
+Branch: `feature/excel-report-redesign`, based on main `d535472`. Verified remote
+`fix/pool-kd-performance-privacy` tip `9a053a9` is already an ancestor of main.
+Scope: Excel projection and report selection labels/tests/docs only; scientific
+algorithms, fixed associations, field evaluation and review behavior remain unchanged.
+Plan: six ordered sheets, compact interpretation/metrics, dedicated paper and pair
+tables, complete candidate audit, operational/review log and separated inventory.
+Existing on-demand report identity/invalidation is retained. Verification pending.
+Private supplied workbooks exist under ignored `.local/user-inputs`; use only those
+for optional real-data validation and synthetic fixtures for committed examples.
+
+Report implementation: **IMPLEMENTED_UNVERIFIED** (comprehensive verification ongoing).
+Focused original export/field tests: **22 passed in 1.25s**. New report tests: **7 passed
+in 2.41s**, including frozen pre-refactor numerical dictionaries, all candidate IDs,
+effective incorrect human confirmation, Pool/Kd provenance, sheet subsets and AppTest
+report invalidation after scoring/sheet/field review/sequence review changes.
+Synthetic six-sheet sample generated successfully with the committed generator under
+`.local/report-redesign/synthetic-six-sheet.xlsx`; migration map in
+`docs/excel-report-layout.md`. Full browser/real-input suite and privacy checks pending.
+
+Real-input report comparison: **VERIFIED** for sequence, Pool, Kd and Pool+Kd on the
+supplied full pair. Baseline `d535472` exporter/audit loaded privately for comparison;
+all eight calculated views and complete scientific audits match. All 50 accepted
+associations and 606 candidates exported, no new alignment calls, source hashes
+unchanged (prefixes `a015e5b896c2` / `6986787019d5`). Final export observations
+0.918–1.033 s versus old 0.555–0.630 s; details in docs/excel-report-layout.md.
+Sample readback: six exact sheets, 51-row summary, populated-section table filters,
+frozen headers, percentage formats and rich-text alignments. Native Excel rendering
+is unavailable; structural/style metadata readback and browser downloads are verified.
+
+An intermediate comprehensive run had **84 passed / 1 failed**: the supplied-input
+verification script retained its old three-sheet assertion. Updated that script and
+the benchmark assertion to the explicit six-sheet contract; affected real-input check
+rerun: **1 passed in 5.62s**. Final focused export/field/UI tests: **29 passed in 3.37s**.
+`pip check`: no broken requirements. Comprehensive final rerun in progress.

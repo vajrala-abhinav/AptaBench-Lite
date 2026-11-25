@@ -80,7 +80,7 @@ def test_optional_pool_kd_run_review_and_reload(tmp_path):
             page.get_by_role('button',name='Prepare Excel report',exact=True).click();idle()
             with page.expect_download() as download:page.get_by_role('button',name='Download Excel report',exact=True).click()
             report=tmp_path/'report.xlsx';download.value.save_as(report)
-            assert load_workbook(report).sheetnames==['Simple Summary','Debug Log','Logistics']
+            assert load_workbook(report).sheetnames==['Simple Summary','Per-Paper Results','Matched Pairs','Debug Log','Logistics & Review','Record Inventory']
             page.get_by_role('button',name='Undo latest field review',exact=True).click()
             expect(page.get_by_text('Pool/Kd review revision 2 saved locally.',exact=True)).to_be_visible();idle()
             with page.expect_download() as download:page.get_by_role('button',name='Download Pool/Kd review backup',exact=True).click()
