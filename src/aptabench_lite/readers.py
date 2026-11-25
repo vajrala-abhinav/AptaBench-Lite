@@ -14,6 +14,7 @@ from openpyxl import load_workbook
 from openpyxl.utils import get_column_letter
 from .models import Record,Source,Diagnostic
 from .normalization import normalize,name_key
+from .performance import timed
 
 MAX_BYTES=20*1024*1024
 MAX_CELL=100_000
@@ -30,6 +31,7 @@ def source_bytes(value):
     return data
 
 
+@timed("excel_parse")
 def workbook(data):
     try:return load_workbook(BytesIO(data),read_only=True,data_only=False,keep_links=False)
     except Exception as exc:raise ValueError('Cannot read .xlsx workbook: '+type(exc).__name__) from exc
@@ -41,29 +43,39 @@ def text(value):return str(value).strip() if value is not None else ''
 def raw_json(value):return json.dumps(value,default=str,ensure_ascii=False,sort_keys=True,allow_nan=False)
 
 
+@timed("workbook_preview")
 def inspect_workbook(value):
     book=workbook(source_bytes(value));result={}
     try:
         for sheet in book:
             rows=sheet.iter_rows(values_only=True)
-            headers=next(rows,())
+            headers=_next_row(rows,())
             result[sheet.title]={'headers':[text(x) for x in headers], 'rows':max(0,(sheet.max_row or 1)-1),
-                                 'preview':[[text(x) for x in r] for _,r in zip(range(3),rows)]}
+                                 'preview':[[text(x) for x in r] for r in [_next_row(rows) for _ in range(3)] if r is not None]}
     finally:book.close()
     return result
+
+
+@timed("excel_parse")
+def _next_row(iterator, default=None):
+    return next(iterator, default)
 
 
 def rows(data,sheet,required,optional):
     book=workbook(data)
     try:
         if sheet not in book.sheetnames:raise ValueError(f'Worksheet {sheet!r} absent; select an available sheet')
-        ws=book[sheet];iterator=ws.iter_rows(values_only=True); headers=[text(x) for x in next(iterator,())]
+        ws=book[sheet];iterator=ws.iter_rows(values_only=True); headers=[text(x) for x in _next_row(iterator,())]
         for field in required:
             if not field or headers.count(field)!=1:raise ValueError(f'Select one unique header for required column {field!r} in {sheet}')
         for field in optional:
             if field and headers.count(field)!=1:raise ValueError(f'Optional column {field!r} absent or duplicated in {sheet}')
         if len(headers)>500:raise ValueError('More than 500 columns; select a smaller worksheet')
-        for row_no,values in enumerate(iterator,2):
+        row_no=1
+        while True:
+            values=_next_row(iterator)
+            if values is None:break
+            row_no+=1
             if row_no>10001:raise ValueError('Worksheet exceeds 10,000 row safety limit')
             if not any(v is not None for v in values):continue
             yield row_no,dict(zip(headers,values)),headers

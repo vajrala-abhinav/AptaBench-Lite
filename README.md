@@ -253,3 +253,17 @@ To validate a hang on real inputs, compare sequence-only / +Pool / +Kd /
 normalization, review restoration, dashboard rendering, and report generation.
 Record only aggregate counts and durations. Do not upload the underlying
 research datasets to GitHub.
+
+### Full-input performance verification
+
+See [the anonymized benchmark](docs/performance-benchmark.md) for phased timings,
+cache verification and the bounded pre-fix reproduction on the supplied full inputs.
+The optional Pool/Kd parse cache reuses source bytes and mapping/run identities;
+review decisions are restored separately. The Run spinner now identifies sequence
+computation, optional-field loading and review restoration as separate phases.
+Normal score/review reruns do not read workbooks or run sequence alignment, and
+Excel remains an explicit **Prepare Excel report** action.
+
+`benchmark_real_inputs.py` requires explicit private paths and never falls back to
+examples. Optional live tracing is disabled unless `APTABENCH_PERFORMANCE_LOG` is
+set; trace files contain timing/count metadata only and belong under `.local/`.

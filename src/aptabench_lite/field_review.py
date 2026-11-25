@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 import tempfile
 
+from .performance import timed
 from .field_eval import field_results
 
 
@@ -65,6 +66,7 @@ def to_bytes(data, events):
     return canonical({"payload": payload, "sha256": sha256(canonical(payload)).hexdigest()})
 
 
+@timed("field_review_restore")
 def from_bytes(data, raw):
     if len(raw)>2*1024*1024:raise ValueError("Field review exceeds 2 MiB")
     try:

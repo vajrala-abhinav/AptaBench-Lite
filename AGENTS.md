@@ -28,3 +28,6 @@ Deterministic decisions and run fingerprints must be invariant to caches and har
 Maintain IMPLEMENTATION_STATUS.md after each meaningful milestone using actual test evidence.
 Run .venv/bin/python -m pytest; verify installed CLI, real Streamlit upload/review/export,
 clean independent installation and report reconciliation before claiming completion.
+Real-input performance checks require explicit private workbook paths; log only
+counts, timings, status categories, lengths and truncated fingerprints. Live timing
+traces are opt-in. Never change scientific policy to address a performance problem.
