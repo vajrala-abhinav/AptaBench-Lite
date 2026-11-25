@@ -483,3 +483,26 @@ verification script retained its old three-sheet assertion. Updated that script 
 the benchmark assertion to the explicit six-sheet contract; affected real-input check
 rerun: **1 passed in 5.62s**. Final focused export/field/UI tests: **29 passed in 3.37s**.
 `pip check`: no broken requirements. Comprehensive final rerun in progress.
+
+### Final report-redesign acceptance — VERIFIED
+
+- Python 3.12 full suite, with the actual supplied paths explicitly enabled:
+  `APTABENCH_TEST_GOLD=<private gold> APTABENCH_TEST_EXTRACTOR=<private extractor>
+  .venv/bin/python -m pytest -q --basetemp .local/report-redesign/final-tests`
+  → **85 passed in 99.03s**, no skips/failures. Includes Chromium upload/download,
+  real-file four-mode evaluation, review resume/import/undo and cache checks.
+- Seven new report-focused tests verify exact six-sheet order and independent subsets,
+  all eight overall views/definitions, no summary inventories, exact effective pairs,
+  all candidates/outcomes, Pool/Kd review/provenance, raw/logical/duplicate inventories,
+  frozen pre-refactor metrics and report invalidation after relevant state changes.
+- Only `exports.py` and the UI report options/import/caption changed under the engine
+  package; matching, normalization, resolution, scoring and review modules are untouched.
+- Source workbook hashes unchanged; no private inputs or generated evidence committed.
+- Synthetic deliverable: `.local/report-redesign/sample-six-sheet.xlsx`; reproduce
+  with `scripts/make_report_example.py --output <new-path.xlsx>`.
+- Excel desktop rendering remains unverified on this Linux machine; workbook structure,
+  style metadata, rich text, metric values and browser downloads have been verified.
+- Implementation is on `feature/excel-report-redesign`; open PR for review. **Do not
+  auto-merge.** No scientific owner decision or implementation blocker is outstanding.
+
+Next action: human review of the focused PR and sample workbook; merge only on request.
