@@ -242,7 +242,14 @@ Private evidence (ignored; never commit): `.local/performance-final-benchmark/`,
 The committed benchmark document contains only aggregate timings/counts and truncated
 fingerprints. No workbooks, raw biological strings, JSON evidence or credentials staged.
 
-Remaining: publish the fix branch and create a focused PR to
-`feature/practical-review-pool-kd`. GitHub API access currently returns Forbidden;
-if PR creation remains blocked, provide the exact compare link and local PR body.
-Remote CI and native Windows/macOS are not claimed verified. Do not auto-merge.
+Published: performance code commit `cc4e1c8` is pushed to
+`fix/pool-kd-performance-privacy`; working tree is clean. Main remains `ea45628`.
+`gh pr create --base feature/practical-review-pool-kd --head fix/pool-kd-performance-privacy`
+failed because `https://api.github.com/graphql` returns Forbidden in this environment.
+No new PR was created. The complete focused description is in ignored
+`.local/performance-pr.md`; the review/creation URL is:
+https://github.com/vajrala-abhinav/AptaBench-Lite/compare/feature/practical-review-pool-kd...fix/pool-kd-performance-privacy?expand=1
+
+Remaining external blocker: permit GitHub API access or create that focused PR from
+the compare page. Implementation and local verification are complete. Remote CI and
+native Windows/macOS are not claimed verified. No merge was performed; do not auto-merge.
