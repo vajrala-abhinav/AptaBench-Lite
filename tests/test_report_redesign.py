@@ -60,7 +60,11 @@ def test_summary_is_compact_and_defines_scientific_counts(make_run):
         for col, key in [('precision','precision'),('recall','recall'),('F1','f1'),('significant_recovery','significant_recovery'),('matched_correctness','matched_correctness')]:
             assert row[col] == pytest.approx(m[key])
     assert ws['D5'].number_format == '0.0%'
-    assert ws.freeze_panes
+    assert ws.freeze_panes is None
+    for report_ws in book.worksheets:
+        assert report_ws.freeze_panes is None
+        for excel_table in report_ws.tables.values():
+            assert not excel_table.tableStyleInfo or not excel_table.tableStyleInfo.showRowStripes
 
 
 def test_effective_pairs_candidates_missing_and_inventory_are_complete(make_run):
